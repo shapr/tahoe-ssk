@@ -59,6 +59,14 @@ extra-doc-files: CHANGELOG.md
 common warnings
   ghc-options: -Wall
 
+library
+  hs-source-dirs:     src
+  exposed-modules:    Tahoe.SDMF
+  build-depends:      base
+  ghc-options:        -Wall
+  default-extensions: OverloadedStrings
+  defaut-language:    Haskell2010
+
 test-suite tahoe-ssk-test
   -- Import common warning flags.
   import:           warnings

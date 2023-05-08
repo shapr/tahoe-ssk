@@ -37,5 +37,24 @@
           ];
       };
       packages = hslib.packages {};
+      apps.hlint = hslib.apps.hlint {};
+
+      # Using the working directory of `nix run`, do a build with cabal and
+      # then run the test suite.
+      apps.cabal-test = {
+        type = "app";
+        program = "${
+          pkgs.writeShellApplication {
+            name = "cabal-build-and-test";
+            runtimeInputs = with pkgs; [pkg-config haskell.compiler.${ghcVersion} cabal-install];
+
+            text = ''
+              cabal update hackage.haskell.org
+              cabal build tests
+              cabal run tests
+            '';
+          }
+        }/bin/cabal-build-and-test";
+      };
     });
 }
