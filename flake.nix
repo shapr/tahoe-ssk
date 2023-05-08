@@ -6,6 +6,10 @@
     flake-utils.url = github:numtide/flake-utils;
     hs-flake-utils.url = "git+https://whetstone.private.storage/jcalderone/hs-flake-utils.git?ref=main";
     nixpkgs.follows = "hs-flake-utils/nixpkgs";
+    tahoe-chk = {
+      url = "git+https://whetstone.private.storage/PrivateStorage/tahoe-chk?ref=refs/tags/0.1.0.1";
+      inputs.nixpkgs.follows = "hs-flake-utils/nixpkgs";
+    };
   };
 
   outputs = {
@@ -13,6 +17,7 @@
     nixpkgs,
     flake-utils,
     hs-flake-utils,
+    tahoe-chk,
   }: let
     ulib = flake-utils.lib;
     ghcVersion = "ghc8107";
@@ -27,6 +32,9 @@
         src = ./.;
         compilerVersion = ghcVersion;
         packageName = "tahoe-ssk";
+        hsPkgsOverrides = hprev: hfinal: {
+          tahoe-chk = tahoe-chk.outputs.packages.${system}.default;
+        };
       };
     in {
       checks = hslib.checks {};
