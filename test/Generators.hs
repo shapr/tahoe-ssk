@@ -10,22 +10,23 @@ import Data.ASN1.Types (ASN1Object (fromASN1, toASN1))
 import Data.Bifunctor (Bifunctor (first))
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
-import Data.Word (Word8)
+import Data.Word (Word16)
 import GHC.IO.Unsafe (unsafePerformIO)
 import Hedgehog (MonadGen)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Tahoe.CHK.Merkle (MerkleTree (..), makeTreePartial)
 import Tahoe.SDMF (Share (..))
+import Tahoe.SDMF.Internal.Share (HashChain (HashChain))
 
 rootHashLength :: Int
-rootHashLength = undefined
+rootHashLength = 32
 
 ivLength :: Int
-ivLength = undefined
+ivLength = 16
 
-signatureLength :: Int
-signatureLength = undefined
+signatureLength :: Range.Range Int
+signatureLength = Range.linear 250 260
 
 {- | Generate SDMF shares.  The contents of the share are not necessarily
  semantically valid.
@@ -42,11 +43,11 @@ shares =
             <*> Gen.word64 Range.exponentialBounded -- shareSegmentSize
             <*> Gen.word64 Range.exponentialBounded -- shareDataLength
             <*> pure (RSA.toPublicKey keypair) -- shareVerificationKey
-            <*> Gen.bytes (Range.singleton signatureLength) -- shareSignature
+            <*> Gen.bytes signatureLength -- shareSignature
             <*> shareHashChains -- shareHashChain
             <*> merkleTrees (Range.singleton 1) -- shareBlockHashTree
             <*> (LB.fromStrict <$> Gen.bytes (Range.exponential 0 1024)) -- shareData
-            <*> (pure . LB.toStrict . toDER . RSA.toPrivateKey) keypair -- sharePrivateKey
+            <*> (pure . LB.toStrict . toDER . RSA.toPrivateKey) keypair -- shareEncryptedPrivateKey
   where
     toDER = encodeASN1 DER . flip toASN1 []
 
@@ -83,8 +84,8 @@ genHash :: MonadGen m => m B.ByteString
 genHash = Gen.bytes . Range.singleton . hashDigestSize $ SHA256
 
 -- | Generate lists of two-tuples of share identifier and share root hash.
-shareHashChains :: MonadGen m => m [(Word8, B.ByteString)]
-shareHashChains = Gen.list range element
+shareHashChains :: MonadGen m => m HashChain
+shareHashChains = HashChain <$> Gen.list range element
   where
     range = Range.exponential 1 5
-    element = (,) <$> Gen.integral (Range.exponential 1 255) <*> Gen.bytes (Range.singleton 32)
+    element = (,) <$> Gen.integral (Range.exponential 0 255) <*> Gen.bytes (Range.singleton 32)

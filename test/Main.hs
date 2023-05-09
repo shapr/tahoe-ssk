@@ -1,14 +1,14 @@
 module Main (main) where
 
 import Hedgehog (
-    Property,
     forAll,
     property,
     tripping,
  )
 
 import qualified Data.Binary as Binary
-import Generators (shares)
+import qualified Data.ByteString as B
+import Generators (shareHashChains, shares)
 import System.IO (hSetEncoding, stderr, stdout, utf8)
 import Test.Tasty (TestTree, defaultMain, testGroup)
 import Test.Tasty.Hedgehog (testProperty)
@@ -17,13 +17,18 @@ tests :: TestTree
 tests =
     testGroup
         "SSK"
-        [ testProperty "round-trips through bytes" $
+        [ testProperty "Hash chain round-trips through bytes" $
             property $ do
-                let decode' = ((\(_, _, sh) -> sh) <$>) . Binary.decodeOrFail
+                hashChain <- forAll shareHashChains
+                tripping hashChain Binary.encode decode'
+        , testProperty "Share round-trips through bytes" $
+            property $ do
                 share <- forAll shares
                 tripping share Binary.encode decode'
-                pure ()
         ]
+  where
+    decode' :: Binary.Binary a => B.ByteString -> a
+    decode' = ((\(_, _, a) -> a) <$>) . Binary.decodeOrFail
 
 main :: IO ()
 main = do

@@ -66,17 +66,26 @@ library
     Tahoe.SDMF.Internal.Share
 
   build-depends:
+    , asn1-encoding
+    , asn1-types
     , base
+    , binary
     , bytestring
     , crypto-api
     , crypto-pubkey-types
     , cryptonite
+    , RSA
 
   -- This dependency isn't ideal.  Move common bits out to
   -- another library.
   build-depends:      tahoe-chk
   ghc-options:        -Wall
-  default-extensions: OverloadedStrings
+  default-extensions:
+    DerivingStrategies
+    GeneralizedNewtypeDeriving
+    OverloadedStrings
+    RecordWildCards
+
   default-language:   Haskell2010
 
 test-suite tahoe-ssk-test
