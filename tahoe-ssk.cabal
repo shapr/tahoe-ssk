@@ -68,7 +68,9 @@ library
   build-depends:
     , base
     , bytestring
+    , crypto-api
     , crypto-pubkey-types
+    , cryptonite
 
   -- This dependency isn't ideal.  Move common bits out to
   -- another library.
