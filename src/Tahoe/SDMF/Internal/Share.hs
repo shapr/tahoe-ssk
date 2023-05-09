@@ -18,6 +18,9 @@ import Data.Word (Word16, Word64, Word8)
 import Debug.Trace (trace)
 import Tahoe.CHK.Merkle (MerkleTree, leafHashes)
 
+hashSize :: Int
+hashSize = 32
+
 newtype HashChain = HashChain
     { hashChain :: [(Word16, B.ByteString)]
     }
@@ -36,7 +39,7 @@ instance Binary HashChain where
             then pure $ HashChain []
             else do
                 n <- getWord16be
-                h <- getByteString 16
+                h <- getByteString hashSize
                 (HashChain c) <- get
                 pure $ HashChain ((n, h) : c)
 
@@ -111,9 +114,9 @@ instance Binary Share where
         blockHashTreeBytes = B.concat . leafHashes $ shareBlockHashTree
 
         -- TODO Compute these from all the putting.
-        signatureOffset = fromIntegral $ 1 + 8 + 32 + 16 + 18 + 32 + B.length verificationKeyBytes
+        signatureOffset = fromIntegral $ 1 + 8 + hashSize + 16 + 18 + 32 + B.length verificationKeyBytes
         hashChainOffset = signatureOffset + fromIntegral (B.length shareSignature)
-        blockHashTreeOffset = hashChainOffset + fromIntegral (length (hashChain shareHashChain) * 34)
+        blockHashTreeOffset = hashChainOffset + fromIntegral (length (hashChain shareHashChain) * (hashSize + 2))
         shareDataOffset = blockHashTreeOffset + fromIntegral (B.length blockHashTreeBytes)
         encryptedPrivateKeyOffset = fromIntegral shareDataOffset + fromIntegral (LB.length shareData)
         eofOffset = encryptedPrivateKeyOffset + fromIntegral (B.length shareEncryptedPrivateKey)
@@ -135,8 +138,6 @@ instance Binary Share where
         encryptedPrivateKeyOffset <- getWord64be
         eofOffset <- getWord64be
 
-        pure $ trace (show $ (signatureOffset, hashChainOffset, blockHashTreeOffset, shareDataOffset, encryptedPrivateKeyOffset, eofOffset)) ()
-
         pos <- bytesRead
         verificationKeyBytes <- getByteString (fromIntegral signatureOffset - fromIntegral pos)
         let Right (Right (shareVerificationKey, _)) = fmap fromASN1 . decodeASN1' DER $ verificationKeyBytes
@@ -145,7 +146,6 @@ instance Binary Share where
         shareSignature <- getByteString (fromIntegral hashChainOffset - fromIntegral pos)
 
         pos <- bytesRead
-        -- -- XXX Magically correct?
         shareHashChain <- isolate (fromIntegral blockHashTreeOffset - fromIntegral pos) get
 
         pos <- bytesRead

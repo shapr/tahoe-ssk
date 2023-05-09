@@ -109,7 +109,9 @@ test-suite tahoe-ssk-test
 
   -- The entrypoint to the test suite.
   main-is:          Main.hs
-  other-modules:    Generators
+  other-modules:
+    Generators
+    Spec
 
   -- Test dependencies.
   build-depends:
