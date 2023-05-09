@@ -100,8 +100,36 @@ test-suite tahoe-ssk-test
 
   -- The entrypoint to the test suite.
   main-is:          Main.hs
+  other-modules:    Generators
 
   -- Test dependencies.
   build-depends:
-    , base       ^>=4.14.3.0
+    , asn1-encoding
+    , asn1-types
+    , base                 ^>=4.14.3.0
+    , binary
+    , bytestring
+    , crypto-api
+    , crypto-pubkey-types
+    , cryptonite
+    , hedgehog
+    , RSA
+    , tahoe-chk
     , tahoe-ssk
+    , tasty
+    , tasty-hedgehog
+
+-- A helper for generating RSA key pairs for use by the test suite.
+executable make-keypairs
+  import:           warnings
+  default-language: Haskell2010
+  main-is:          Main.hs
+  hs-source-dirs:   make-keypairs
+  build-depends:
+    , asn1-encoding
+    , asn1-types
+    , base
+    , bytestring
+    , crypto-api
+    , crypto-pubkey-types
+    , RSA

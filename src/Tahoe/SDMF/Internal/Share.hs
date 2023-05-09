@@ -51,3 +51,4 @@ data Share = Share
     , -- | The encrypted 2048 bit "signature" RSA key.
       shareEncryptedPrivateKey :: B.ByteString
     }
+    deriving (Show)
