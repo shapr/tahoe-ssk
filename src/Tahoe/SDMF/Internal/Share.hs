@@ -32,7 +32,7 @@ data Share = Share
     , -- | The size of a single ciphertext segment.
       shareSegmentSize :: Word64
     , -- | The length of the original plaintext.
-      shareDataLength :: Word8
+      shareDataLength :: Word64
     , -- | The 2048 bit "verification" RSA key.
       shareVerificationKey :: RSA.PublicKey
     , -- | The RSA signature of
