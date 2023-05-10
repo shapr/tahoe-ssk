@@ -58,7 +58,7 @@
 
             text = ''
               cabal update hackage.haskell.org
-              cabal build tests
+              cabal build
               cabal run tests
             '';
           }
