@@ -63,6 +63,8 @@ library
   hs-source-dirs:     src
   exposed-modules:
     Tahoe.SDMF
+    Tahoe.SDMF.Internal.Capability
+    Tahoe.SDMF.Internal.Encoding
     Tahoe.SDMF.Internal.Share
 
   build-depends:

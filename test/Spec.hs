@@ -1,6 +1,7 @@
 module Spec where
 
 import Hedgehog (
+    diff,
     forAll,
     property,
     tripping,
@@ -9,9 +10,11 @@ import Hedgehog (
 import qualified Data.Binary as Binary
 import Data.Binary.Get (ByteOffset)
 import qualified Data.ByteString.Lazy as LB
-import Generators (shareHashChains, shares)
+import Generators (encodingParameters, genRSAKeys, shareHashChains, shares)
+import qualified Hedgehog.Gen as Gen
+import qualified Hedgehog.Range as Range
 import System.IO (hSetEncoding, stderr, stdout, utf8)
-import Tahoe.SDMF (Share)
+import qualified Tahoe.SDMF
 import Test.Tasty (TestTree, defaultMain, testGroup)
 import Test.Tasty.HUnit (assertEqual, testCase)
 import Test.Tasty.Hedgehog (testProperty)
@@ -30,6 +33,17 @@ tests =
                 tripping share Binary.encode decode'
         , testCase "known-correct serialized shares round-trip though Share" $
             mapM_ knownCorrectRoundTrip [0 :: Int .. 9]
+        , testProperty "Ciphertext round-trips through encode . decode" $
+            property $ do
+                keypair <- forAll genRSAKeys
+                ciphertext <- forAll $ LB.fromStrict <$> Gen.bytes (Range.exponential 1 1024)
+                sequenceNumber <- forAll $ Gen.integral Range.exponentialBounded
+                (required, total) <- forAll encodingParameters
+
+                (shares', cap') <- Tahoe.SDMF.encode keypair sequenceNumber required total ciphertext
+
+                recovered <- Tahoe.SDMF.decode cap' (zip [0 ..] shares')
+                diff (Just ciphertext) (==) recovered
         ]
 
 {- | Load a known-correct SDMF bucket and assert that bytes in the slot it
@@ -51,7 +65,7 @@ knownCorrectRoundTrip n = do
     assertEqual "Cannot account for extra leases" suffix "\0\0\0\0"
 
     let decoded = decode' shareData
-    let encoded = (Binary.encode :: Share -> LB.ByteString) <$> decoded
+    let encoded = (Binary.encode :: Tahoe.SDMF.Share -> LB.ByteString) <$> decoded
     assertEqual "original /= encoded" (Right shareData) encoded
 
 -- | Like `Binary.Binary.decodeOrFail` but only return the decoded value.
