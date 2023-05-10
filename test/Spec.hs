@@ -54,6 +54,10 @@ tests =
 
 {- | Load a known-correct SDMF bucket and assert that bytes in the slot it
  contains deserializes to a Share and then serializes back to the same bytes
+
+ Note: The capability for the test data is:
+
+   URI:SSK:vdv6pcqkblsguvkagrblr3gopu:6pd5r2qrsb3zuq2n6ocvcsg2a6b47ehclqxidkzd5awdabhtdo6a
 -}
 knownCorrectRoundTrip :: Show a => a -> IO ()
 knownCorrectRoundTrip n = do
@@ -73,6 +77,11 @@ knownCorrectRoundTrip n = do
     let decoded = decode' shareData
     let encoded = (Binary.encode :: Tahoe.SDMF.Share -> LB.ByteString) <$> decoded
     assertEqual "original /= encoded" (Right shareData) encoded
+
+    -- We also know some specific things about the know-correct shares.
+    let (Right sh) = decoded
+    assertEqual "3 /= required" 3 (Tahoe.SDMF.shareRequiredShares sh)
+    assertEqual "10 /= total" 10 (Tahoe.SDMF.shareTotalShares sh)
 
 -- | Like `Binary.Binary.decodeOrFail` but only return the decoded value.
 decode' :: Binary.Binary b => LB.ByteString -> Either (LB.ByteString, ByteOffset, String) b

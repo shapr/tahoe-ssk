@@ -92,8 +92,8 @@ instance Binary Share where
         putWord64be shareSequenceNumber
         putByteString shareRootHash
         putByteString . initializationVector $ shareIV
-        putWord8 shareTotalShares
         putWord8 shareRequiredShares
+        putWord8 shareTotalShares
         putWord64be shareSegmentSize
         putWord64be shareDataLength
         putWord32be signatureOffset
@@ -126,8 +126,8 @@ instance Binary Share where
         shareSequenceNumber <- getWord64be
         shareRootHash <- getByteString 32
         shareIV <- IV <$> getByteString 16
-        shareTotalShares <- getWord8
         shareRequiredShares <- getWord8
+        shareTotalShares <- getWord8
         shareSegmentSize <- getWord64be
         shareDataLength <- getWord64be
         signatureOffset <- getWord32be
