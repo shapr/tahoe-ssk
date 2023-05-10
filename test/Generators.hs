@@ -2,15 +2,15 @@ module Generators where
 
 import Crypto.Hash (HashAlgorithm (hashDigestSize))
 import Crypto.Hash.Algorithms (SHA256 (SHA256))
+import qualified Crypto.PubKey.RSA.Types as RSA
 import Crypto.Types (IV (..))
-import qualified Crypto.Types.PubKey.RSA as RSA
 import Data.ASN1.BinaryEncoding (DER (DER))
 import Data.ASN1.Encoding (ASN1Decoding (decodeASN1), ASN1Encoding (encodeASN1))
 import Data.ASN1.Types (ASN1Object (fromASN1, toASN1))
 import Data.Bifunctor (Bifunctor (first))
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
-import Data.Word (Word16)
+import Data.X509 (PrivKey (PrivKeyRSA))
 import GHC.IO.Unsafe (unsafePerformIO)
 import Hedgehog (MonadGen)
 import qualified Hedgehog.Gen as Gen
@@ -47,7 +47,7 @@ shares =
             <*> shareHashChains -- shareHashChain
             <*> merkleTrees (Range.singleton 1) -- shareBlockHashTree
             <*> (LB.fromStrict <$> Gen.bytes (Range.exponential 0 1024)) -- shareData
-            <*> (pure . LB.toStrict . toDER . RSA.toPrivateKey) keypair -- shareEncryptedPrivateKey
+            <*> (pure . LB.toStrict . toDER . PrivKeyRSA . RSA.toPrivateKey) keypair -- shareEncryptedPrivateKey
   where
     toDER = encodeASN1 DER . flip toASN1 []
 
@@ -73,7 +73,9 @@ rsaKeyPair bs = do
     let (Right kp) = do
             asn1s <- first show (decodeASN1 DER bs)
             (r, _) <- fromASN1 asn1s
-            pure r
+            case r of
+                PrivKeyRSA pk -> pure $ RSA.KeyPair pk
+                _ -> error "Expected RSA Private Key"
     kp
 
 merkleTrees :: MonadGen m => Range.Range Int -> m MerkleTree

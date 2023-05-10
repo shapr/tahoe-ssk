@@ -75,6 +75,7 @@ library
     , crypto-pubkey-types
     , cryptonite
     , RSA
+    , x509
 
   -- This dependency isn't ideal.  Move common bits out to
   -- another library.
@@ -90,10 +91,11 @@ library
 
 test-suite tahoe-ssk-test
   -- Import common warning flags.
-  import:           warnings
+  import:             warnings
 
   -- Base language which the package is written in.
-  default-language: Haskell2010
+  default-language:   Haskell2010
+  default-extensions: OverloadedStrings
 
   -- Modules included in this executable, other than Main.
   -- other-modules:
@@ -102,13 +104,13 @@ test-suite tahoe-ssk-test
   -- other-extensions:
 
   -- The interface type and version of the test suite.
-  type:             exitcode-stdio-1.0
+  type:               exitcode-stdio-1.0
 
   -- Directories containing source files.
-  hs-source-dirs:   test
+  hs-source-dirs:     test
 
   -- The entrypoint to the test suite.
-  main-is:          Main.hs
+  main-is:            Main.hs
   other-modules:
     Generators
     Spec
@@ -129,6 +131,8 @@ test-suite tahoe-ssk-test
     , tahoe-ssk
     , tasty
     , tasty-hedgehog
+    , tasty-hunit
+    , x509
 
 -- A helper for generating RSA key pairs for use by the test suite.
 executable make-keypairs

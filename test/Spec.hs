@@ -11,7 +11,9 @@ import Data.Binary.Get (ByteOffset)
 import qualified Data.ByteString.Lazy as LB
 import Generators (shareHashChains, shares)
 import System.IO (hSetEncoding, stderr, stdout, utf8)
+import Tahoe.SDMF (Share)
 import Test.Tasty (TestTree, defaultMain, testGroup)
+import Test.Tasty.HUnit (assertEqual, testCase)
 import Test.Tasty.Hedgehog (testProperty)
 
 tests :: TestTree
@@ -26,6 +28,23 @@ tests =
             property $ do
                 share <- forAll shares
                 tripping share Binary.encode decode'
+        , testCase "known-correct serialized shares round-trip though Share" $ do
+            -- The files are in "bucket" format.  We need to extract the
+            -- "slot".  We do so by stripping a prefix and suffix.  To avoid
+            -- having to parse the prefix, we assert that the suffix is a
+            -- predictable size.
+            bucket <- LB.readFile "test/data/3of10.0"
+            let withoutPrefix = LB.drop (32 + 20 + 32 + 8 + 8 + 368) bucket
+                dataSize = LB.length withoutPrefix - 4
+                shareData = LB.take dataSize withoutPrefix
+                suffix = LB.drop dataSize withoutPrefix
+
+            -- Our assumption about the data we're working on...
+            assertEqual "Cannot account for extra leases" suffix "\0\0\0\0"
+
+            let decoded = decode' shareData
+            let encoded = (Binary.encode :: Share -> LB.ByteString) <$> decoded
+            assertEqual "original /= encoded" (Right shareData) encoded
         ]
   where
     decode' :: Binary.Binary b => LB.ByteString -> Either (LB.ByteString, ByteOffset, String) b

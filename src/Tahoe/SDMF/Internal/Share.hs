@@ -1,21 +1,20 @@
 -- | Deal with details related to the structural layout of an SDMF share.
 module Tahoe.SDMF.Internal.Share where
 
-import Control.Monad (unless, when)
-import Control.Monad.IO.Class (MonadIO (liftIO))
+import Control.Monad (unless)
 import Crypto.Cipher.AES (AES128)
+import qualified Crypto.PubKey.RSA.Types as RSA
 import Crypto.Types (IV (IV, initializationVector))
-import qualified Crypto.Types.PubKey.RSA as RSA
 import Data.ASN1.BinaryEncoding (DER (DER))
 import Data.ASN1.Encoding (ASN1Encoding (encodeASN1), decodeASN1')
 import Data.ASN1.Types (ASN1Object (fromASN1, toASN1))
-import Data.Binary (Binary (..), getWord8)
-import Data.Binary.Get (bytesRead, getByteString, getLazyByteString, getWord16be, getWord32be, getWord64be, isEmpty, isolate)
+import Data.Binary (Binary (..), Get, getWord8)
+import Data.Binary.Get (bytesRead, getByteString, getLazyByteString, getRemainingLazyByteString, getWord16be, getWord32be, getWord64be, isEmpty, isolate)
 import Data.Binary.Put (putByteString, putLazyByteString, putWord16be, putWord32be, putWord64be, putWord8)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
 import Data.Word (Word16, Word64, Word8)
-import Debug.Trace (trace)
+import Data.X509 (PubKey (PubKeyRSA))
 import Tahoe.CHK.Merkle (MerkleTree, leafHashes)
 
 hashSize :: Int
@@ -110,7 +109,7 @@ instance Binary Share where
         putLazyByteString shareData
         putByteString shareEncryptedPrivateKey
       where
-        verificationKeyBytes = LB.toStrict . encodeASN1 DER . flip toASN1 [] $ shareVerificationKey
+        verificationKeyBytes = LB.toStrict . encodeASN1 DER . flip toASN1 [] . PubKeyRSA $ shareVerificationKey
         blockHashTreeBytes = B.concat . leafHashes $ shareBlockHashTree
 
         -- TODO Compute these from all the putting.
@@ -139,8 +138,7 @@ instance Binary Share where
         eofOffset <- getWord64be
 
         pos <- bytesRead
-        verificationKeyBytes <- getByteString (fromIntegral signatureOffset - fromIntegral pos)
-        let Right (Right (shareVerificationKey, _)) = fmap fromASN1 . decodeASN1' DER $ verificationKeyBytes
+        shareVerificationKey <- isolate (fromIntegral signatureOffset - fromIntegral pos) getSubjectPublicKeyInfo
 
         pos <- bytesRead
         shareSignature <- getByteString (fromIntegral hashChainOffset - fromIntegral pos)
@@ -161,3 +159,13 @@ instance Binary Share where
         unless empty (fail "Expected end of input but there are more bytes")
 
         pure Share{..}
+
+{- | Read an X.509v3-encoded SubjectPublicKeyInfo structure carrying an ASN.1
+ DER encoded RSA public key.
+-}
+getSubjectPublicKeyInfo :: Get RSA.PublicKey
+getSubjectPublicKeyInfo = do
+    verificationKeyBytes <- getRemainingLazyByteString
+    let (Right asn1s) = decodeASN1' DER . LB.toStrict $ verificationKeyBytes
+    let (Right (PubKeyRSA pubKey, [])) = fromASN1 asn1s
+    pure pubKey
