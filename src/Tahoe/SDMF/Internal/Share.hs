@@ -2,7 +2,7 @@
 module Tahoe.SDMF.Internal.Share where
 
 import Control.Monad (unless)
-import Crypto.Cipher.AES (AES128)
+import Crypto.Cipher.AES128 (AESKey128)
 import qualified Crypto.PubKey.RSA.Types as RSA
 import Crypto.Types (IV (IV, initializationVector))
 import Data.ASN1.BinaryEncoding (DER (DER))
@@ -14,7 +14,7 @@ import Data.Binary.Put (putByteString, putLazyByteString, putWord16be, putWord32
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
 import Data.Word (Word16, Word64, Word8)
-import Data.X509 (PubKey (PubKeyRSA))
+import Data.X509 (PrivKey (PrivKeyRSA), PubKey (PubKeyRSA))
 import Tahoe.CHK.Merkle (MerkleTree, leafHashes)
 
 hashSize :: Int
@@ -57,7 +57,7 @@ data Share = Share
     , -- | "R" (root of share hash merkle tree)
       shareRootHash :: B.ByteString
     , -- | The IV for encryption of share data.
-      shareIV :: IV AES128
+      shareIV :: IV AESKey128
     , -- | The total number of encoded shares (k).
       shareTotalShares :: Word8
     , -- | The number of shares required for decoding (N).
@@ -109,7 +109,7 @@ instance Binary Share where
         putLazyByteString shareData
         putByteString shareEncryptedPrivateKey
       where
-        verificationKeyBytes = LB.toStrict . encodeASN1 DER . flip toASN1 [] . PubKeyRSA $ shareVerificationKey
+        verificationKeyBytes = verificationKeyToBytes shareVerificationKey
         blockHashTreeBytes = B.concat . leafHashes $ shareBlockHashTree
 
         -- TODO Compute these from all the putting.
@@ -165,7 +165,21 @@ instance Binary Share where
 -}
 getSubjectPublicKeyInfo :: Get RSA.PublicKey
 getSubjectPublicKeyInfo = do
-    verificationKeyBytes <- getRemainingLazyByteString
-    let (Right asn1s) = decodeASN1' DER . LB.toStrict $ verificationKeyBytes
+    bytes <- getRemainingLazyByteString
+    let (Right asn1s) = decodeASN1' DER . LB.toStrict $ bytes
     let (Right (PubKeyRSA pubKey, [])) = fromASN1 asn1s
     pure pubKey
+
+{- | Encode a public key to the Tahoe-LAFS canonical bytes representation -
+ X.509 SubjectPublicKeyInfo of the ASN.1 DER serialization of an RSA
+ PublicKey.
+-}
+verificationKeyToBytes :: RSA.PublicKey -> B.ByteString
+verificationKeyToBytes = LB.toStrict . encodeASN1 DER . flip toASN1 [] . PubKeyRSA
+
+{- | Encode a private key to the Tahoe-LAFS canonical bytes representation -
+ X.509 SubjectPublicKeyInfo of the ASN.1 DER serialization of an RSA
+ PublicKey.
+-}
+signatureKeyToBytes :: RSA.PrivateKey -> B.ByteString
+signatureKeyToBytes = LB.toStrict . encodeASN1 DER . flip toASN1 [] . PrivKeyRSA

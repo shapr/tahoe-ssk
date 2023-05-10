@@ -1,6 +1,10 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE NamedFieldPuns #-}
+
 module Spec where
 
 import Hedgehog (
+    annotateShow,
     diff,
     forAll,
     property,
@@ -40,10 +44,12 @@ tests =
                 sequenceNumber <- forAll $ Gen.integral Range.exponentialBounded
                 (required, total) <- forAll encodingParameters
 
-                (shares', cap') <- Tahoe.SDMF.encode keypair sequenceNumber required total ciphertext
+                (shares', Tahoe.SDMF.Writer{Tahoe.SDMF.writerReader}) <- Tahoe.SDMF.encode keypair sequenceNumber required total ciphertext
 
-                recovered <- Tahoe.SDMF.decode cap' (zip [0 ..] shares')
-                diff (Just ciphertext) (==) recovered
+                annotateShow shares'
+
+                recovered <- Tahoe.SDMF.decode writerReader (zip [0 ..] shares')
+                diff ciphertext (==) recovered
         ]
 
 {- | Load a known-correct SDMF bucket and assert that bytes in the slot it

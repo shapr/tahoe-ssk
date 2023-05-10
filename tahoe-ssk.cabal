@@ -73,6 +73,8 @@ library
     , base
     , binary
     , bytestring
+    , cereal
+    , cipher-aes128
     , crypto-api
     , crypto-pubkey-types
     , cryptonite
@@ -86,6 +88,7 @@ library
   default-extensions:
     DerivingStrategies
     GeneralizedNewtypeDeriving
+    NamedFieldPuns
     OverloadedStrings
     RecordWildCards
 
