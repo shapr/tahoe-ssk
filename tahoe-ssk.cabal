@@ -66,25 +66,36 @@ library
     Tahoe.SDMF.Internal.Share
 
   build-depends:
+    , asn1-encoding
+    , asn1-types
     , base
+    , binary
     , bytestring
     , crypto-api
     , crypto-pubkey-types
     , cryptonite
+    , RSA
+    , x509
 
   -- This dependency isn't ideal.  Move common bits out to
   -- another library.
   build-depends:      tahoe-chk
   ghc-options:        -Wall
-  default-extensions: OverloadedStrings
+  default-extensions:
+    DerivingStrategies
+    GeneralizedNewtypeDeriving
+    OverloadedStrings
+    RecordWildCards
+
   default-language:   Haskell2010
 
 test-suite tahoe-ssk-test
   -- Import common warning flags.
-  import:           warnings
+  import:             warnings
 
   -- Base language which the package is written in.
-  default-language: Haskell2010
+  default-language:   Haskell2010
+  default-extensions: OverloadedStrings
 
   -- Modules included in this executable, other than Main.
   -- other-modules:
@@ -93,15 +104,47 @@ test-suite tahoe-ssk-test
   -- other-extensions:
 
   -- The interface type and version of the test suite.
-  type:             exitcode-stdio-1.0
+  type:               exitcode-stdio-1.0
 
   -- Directories containing source files.
-  hs-source-dirs:   test
+  hs-source-dirs:     test
 
   -- The entrypoint to the test suite.
-  main-is:          Main.hs
+  main-is:            Main.hs
+  other-modules:
+    Generators
+    Spec
 
   -- Test dependencies.
   build-depends:
-    , base       ^>=4.14.3.0
+    , asn1-encoding
+    , asn1-types
+    , base                 ^>=4.14.3.0
+    , binary
+    , bytestring
+    , crypto-api
+    , crypto-pubkey-types
+    , cryptonite
+    , hedgehog
+    , RSA
+    , tahoe-chk
     , tahoe-ssk
+    , tasty
+    , tasty-hedgehog
+    , tasty-hunit
+    , x509
+
+-- A helper for generating RSA key pairs for use by the test suite.
+executable make-keypairs
+  import:           warnings
+  default-language: Haskell2010
+  main-is:          Main.hs
+  hs-source-dirs:   make-keypairs
+  build-depends:
+    , asn1-encoding
+    , asn1-types
+    , base
+    , bytestring
+    , crypto-api
+    , crypto-pubkey-types
+    , RSA
