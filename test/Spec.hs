@@ -32,6 +32,9 @@ tests =
             mapM_ knownCorrectRoundTrip [0 :: Int .. 9]
         ]
 
+{- | Load a known-correct SDMF bucket and assert that bytes in the slot it
+ contains deserializes to a Share and then serializes back to the same bytes
+-}
 knownCorrectRoundTrip :: Show a => a -> IO ()
 knownCorrectRoundTrip n = do
     -- The files are in "bucket" format.  We need to extract the
@@ -51,6 +54,7 @@ knownCorrectRoundTrip n = do
     let encoded = (Binary.encode :: Share -> LB.ByteString) <$> decoded
     assertEqual "original /= encoded" (Right shareData) encoded
 
+-- | Like `Binary.Binary.decodeOrFail` but only return the decoded value.
 decode' :: Binary.Binary b => LB.ByteString -> Either (LB.ByteString, ByteOffset, String) b
 decode' = ((\(_, _, a) -> a) <$>) . Binary.decodeOrFail
 
