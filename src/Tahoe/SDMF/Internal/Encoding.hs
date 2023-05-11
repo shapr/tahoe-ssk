@@ -45,9 +45,7 @@ encode keypair shareSequenceNumber required total ciphertext = do
                 <$> encryptedPrivateKey
 
     let resultE = map <$> makeShareE <*> pure blocks
-    case (,) <$> resultE <*> cap of
-        Left err -> fail (T.unpack err)
-        Right result -> pure result
+    either (fail . T.unpack) pure ((,) <$> resultE <*> cap)
   where
     -- We can compute a capability immediately.
     cap = capabilityForKeyPair keypair
