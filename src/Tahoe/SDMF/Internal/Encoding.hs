@@ -1,5 +1,3 @@
-{-# LANGUAGE TupleSections #-}
-
 module Tahoe.SDMF.Internal.Encoding where
 
 import Control.Monad.IO.Class (MonadIO (liftIO))
@@ -34,17 +32,20 @@ encode keypair shareSequenceNumber required total ciphertext = do
     iv <- liftIO (getIVIO :: IO (IV AESKey128))
 
     -- XXX fromIntegral is going from Word16 to Word8, not safe
-    let makeShareE =
-            makeShare
-                shareSequenceNumber
-                iv
-                (fromIntegral required)
-                (fromIntegral total)
-                (fromIntegral $ LB.length ciphertext)
-                (RSA.toPublicKey keypair)
-                <$> encryptedPrivateKey
+    let makeShare' =
+            flip $
+                makeShare
+                    shareSequenceNumber
+                    iv
+                    (fromIntegral required)
+                    (fromIntegral total)
+                    (fromIntegral $ LB.length ciphertext)
+                    (RSA.toPublicKey keypair)
 
-    let resultE = map <$> makeShareE <*> pure blocks
+    let makeShare'' = makeShare' <$> blocks
+
+        resultE :: Either T.Text [Share]
+        resultE = (traverse . flip fmap) encryptedPrivateKey makeShare''
     either (fail . T.unpack) pure ((,) <$> resultE <*> cap)
   where
     -- We can compute a capability immediately.
