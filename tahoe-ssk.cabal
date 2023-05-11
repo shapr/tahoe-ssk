@@ -79,6 +79,7 @@ library
     , crypto-pubkey-types
     , cryptonite
     , RSA
+    , text
     , x509
 
   -- This dependency isn't ideal.  Move common bits out to
