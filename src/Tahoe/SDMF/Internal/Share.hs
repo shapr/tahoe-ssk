@@ -3,8 +3,7 @@ module Tahoe.SDMF.Internal.Share where
 
 import Control.Monad (unless)
 import Crypto.Cipher.AES (AES128)
-import Crypto.Cipher.Types (Cipher (cipherInit), IV, makeIV)
-import Crypto.Error (maybeCryptoError)
+import Crypto.Cipher.Types (IV, makeIV)
 import qualified Crypto.PubKey.RSA.Types as RSA
 import Data.ASN1.BinaryEncoding (DER (DER))
 import Data.ASN1.Encoding (ASN1Encoding (encodeASN1), decodeASN1')
