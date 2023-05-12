@@ -34,10 +34,15 @@ newtype Signature = Signature {unSignature :: RSA.PrivateKey}
     deriving newtype (Eq, Show)
 
 data Write = Write {unWrite :: AES128, writeKeyBytes :: ByteArray.ScrubbedBytes}
+
 instance Show Write where
     show (Write _ bs) = T.unpack $ T.concat ["<WriteKey ", encodeBase32Unpadded (ByteArray.convert bs), ">"]
 
 data Read = Read {unRead :: AES128, readKeyBytes :: ByteArray.ScrubbedBytes}
+
+instance Show Read where
+    show (Read _ bs) = T.unpack $ T.concat ["<ReadKey ", encodeBase32Unpadded (ByteArray.convert bs), ">"]
+
 newtype StorageIndex = StorageIndex {unStorageIndex :: B.ByteString}
 
 newtype WriteEnablerMaster = WriteEnablerMaster ByteArray.ScrubbedBytes
