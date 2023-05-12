@@ -22,3 +22,8 @@ print("readkey: ", base32.b2a(readkey))
 print("datakey: ", base32.b2a(datakey))
 print("encrypted private key: ", base32.b2a(encprivkey))
 print("signature key hash: ", base32.b2a(fingerprint))
+
+(priv, pub) = rsa.create_signing_keypair(2048)
+priv_bytes = rsa.der_string_from_signing_key(priv)
+with open("data/tahoe-lafs-generated-rsa-privkey.der", "wb") as f:
+    f.write(priv_bytes)
