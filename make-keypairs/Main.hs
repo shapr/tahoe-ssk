@@ -1,11 +1,9 @@
 module Main where
 
 import qualified Crypto.PubKey.RSA as RSA
-import Data.ASN1.BinaryEncoding (DER (DER))
-import Data.ASN1.Encoding (ASN1Encoding (encodeASN1))
-import Data.ASN1.Types (ASN1Object (toASN1))
-import qualified Data.ByteString.Lazy as LB
-import Data.X509 (PrivKey (PrivKeyRSA))
+import qualified Data.ByteString as B
+import Tahoe.SDMF.Internal.Keys (signatureKeyToBytes)
+import Tahoe.SDMF.Keys (Signature (..))
 
 -- | The size of the keys to generate.
 bits :: Int
@@ -21,8 +19,12 @@ main = do
 
 genKey :: Show a => a -> IO ()
 genKey n = do
-    (_, priv) <- RSA.generate bits e
-    let bytes = encodeASN1 DER (toASN1 (PrivKeyRSA priv) [])
-    LB.writeFile ("test/data/rsa-privkey-" <> show n <> ".der") bytes
+    print "Generating RSA key..."
+    (_, priv) <- RSA.generate (bits `div` 8) e
+    print $ "Serializing key " <> show n
+    let bytes = signatureKeyToBytes (Signature priv)
+    print $ "Generated them (" <> show (B.length bytes) <> " bytes)"
+    B.writeFile ("test/data/rsa-privkey-" <> show n <> ".der") bytes
+    print "Wrote them to the file."
   where
     e = 0x10001

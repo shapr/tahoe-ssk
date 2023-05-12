@@ -9,7 +9,6 @@ import Hedgehog (
 import Crypto.Cipher.Types (makeIV)
 import Data.ASN1.BinaryEncoding (DER (DER))
 import Data.ASN1.Encoding (decodeASN1')
-import Data.ASN1.Types (ASN1Object (fromASN1))
 import qualified Data.Binary as Binary
 import Data.Binary.Get (ByteOffset)
 import qualified Data.ByteArray as ByteArray
@@ -17,10 +16,10 @@ import qualified Data.ByteString as B
 import Data.ByteString.Base32 (encodeBase32Unpadded)
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Text as T
-import Data.X509 (PrivKey (PrivKeyRSA))
-import Generators (shareHashChains, shares)
+import Generators (genRSAKeys, shareHashChains, shares)
 import System.IO (hSetEncoding, stderr, stdout, utf8)
 import Tahoe.SDMF (Share)
+import Tahoe.SDMF.Internal.Keys (signatureKeyFromBytes, signatureKeyToBytes)
 import qualified Tahoe.SDMF.Keys as Keys
 import Test.Tasty (TestTree, defaultMain, testGroup)
 import Test.Tasty.HUnit (assertEqual, testCase)
@@ -38,23 +37,62 @@ tests =
             property $ do
                 hashChain <- forAll shareHashChains
                 tripping hashChain Binary.encode decode'
+        , testProperty "Signatures round-trip through signatureKeyToBytes . signatureKeyFromBytes" $
+            property $ do
+                key <- forAll genRSAKeys
+                tripping (Keys.Signature . Keys.toPrivateKey $ key) signatureKeyToBytes signatureKeyFromBytes
+        , testCase "Signature byte-serializations round-trip through signatureKeyFromBytes . signatureKeyToBytes" $ do
+            let keyPaths =
+                    [ -- Check ours
+                      "test/data/rsa-privkey-0.der"
+                    , "test/data/rsa-privkey-1.der"
+                    , "test/data/rsa-privkey-2.der"
+                    , "test/data/rsa-privkey-3.der"
+                    , "test/data/rsa-privkey-4.der"
+                    , -- And one from Tahoe-LAFS
+                      "test/data/tahoe-lafs-generated-rsa-privkey.der"
+                    ]
+                checkSignatureRoundTrip p =
+                    B.readFile p >>= \original ->
+                        let (Right sigKey) = signatureKeyFromBytes original
+                            serialized = signatureKeyToBytes sigKey
+                         in do
+                                -- They should decode to the same structure.  This
+                                -- has the advantage of representing differences a
+                                -- little more transparently than the next
+                                -- assertion.
+                                assertEqual
+                                    "decodeASN1 original /= decodeASN1 serialized"
+                                    (decodeASN1' DER original)
+                                    (decodeASN1' DER serialized)
+                                -- Also check the raw bytes in case there
+                                -- are different representations of the
+                                -- structure possible.  The raw bytes
+                                -- matter because we hash them in key
+                                -- derivations.
+                                assertEqual "original /= serialized" original serialized
+            -- Check them all
+            mapM_ checkSignatureRoundTrip keyPaths
         , testCase "derived keys equal known-correct values" $
             -- The path is relative to the root of the package, which is where
             -- at least some test runners will run the test process.  If
             B.readFile "test/data/rsa-privkey-0.der" >>= \privBytes ->
-                let (Just iv) = Keys.SDMF_IV <$> makeIV (B.replicate 16 0x42)
-                    expectedWriteKey = ("ae6e6cgcllhty4z5l4dp5v7gee" :: T.Text)
-                    expectedReadKey = ("rbx5xh5rztefvazy7sq32sw34y" :: T.Text)
-                    expectedDataKey = ("4ay4y6itvk7cvynpyok3qmxf5y" :: T.Text)
+                let -- Load the test key.
+                    (Right sigKey) = signatureKeyFromBytes privBytes
 
-                    (Right asn1s) = decodeASN1' DER privBytes
-                    (Right (PrivKeyRSA privKey, [])) = fromASN1 asn1s
-                    (Just w@(Keys.Write _ derivedWriteKey)) = Keys.deriveWriteKey (Keys.Signature privKey)
+                    -- Hard-code the expected result.
+                    expectedWriteKey = ("v7iymuxkc5yv2fomi3xwbjdd4e" :: T.Text)
+                    expectedReadKey = ("6ir6husgx6ubro3tbimmzskqri" :: T.Text)
+                    expectedDataKey = ("bbj67exlrkfcaqutwlgwvukbfe" :: T.Text)
+
+                    -- Derive all the keys.
+                    (Just iv) = Keys.SDMF_IV <$> makeIV (B.replicate 16 0x42)
+                    (Just w@(Keys.Write _ derivedWriteKey)) = Keys.deriveWriteKey sigKey
                     (Just r@(Keys.Read _ derivedReadKey)) = Keys.deriveReadKey w
                     (Just d@(Keys.Data _ derivedDataKey)) = Keys.deriveDataKey iv r
 
-                    -- Format a key as text for convenient comparison to
-                    -- expected value.
+                    -- A helper to format a key as text for convenient
+                    -- comparison to expected value.
                     fmtKey = T.toLower . encodeBase32Unpadded . ByteArray.convert
                  in do
                         -- In general it might make more sense to convert expected

@@ -149,4 +149,5 @@ executable make-keypairs
     , base
     , bytestring
     , cryptonite
+    , tahoe-ssk
     , x509

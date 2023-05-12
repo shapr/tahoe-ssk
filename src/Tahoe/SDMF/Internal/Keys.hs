@@ -3,14 +3,16 @@ module Tahoe.SDMF.Internal.Keys where
 
 import Prelude hiding (Read)
 
+import Control.Monad (when)
 import Crypto.Cipher.AES (AES128)
 import Crypto.Cipher.Types (Cipher (cipherInit, cipherKeySize), IV, KeySizeSpecifier (KeySizeFixed))
 import Crypto.Error (maybeCryptoError)
 import qualified Crypto.PubKey.RSA as RSA
 import Crypto.Random (MonadRandom)
 import Data.ASN1.BinaryEncoding (DER (DER))
-import Data.ASN1.Encoding (ASN1Encoding (encodeASN1))
-import Data.ASN1.Types (ASN1Object (toASN1))
+import Data.ASN1.Encoding (ASN1Encoding (encodeASN1), decodeASN1')
+import Data.ASN1.Types (ASN1 (End, IntVal, Null, OID, OctetString, Start), ASN1ConstructionType (Sequence), ASN1Object (fromASN1, toASN1))
+import Data.Bifunctor (Bifunctor (first))
 import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString as B
 import Data.ByteString.Base32 (encodeBase32Unpadded)
@@ -20,14 +22,19 @@ import Data.X509 (PrivKey (PrivKeyRSA), PubKey (PubKeyRSA))
 import Tahoe.CHK.Crypto (taggedHash, taggedPairHash)
 import Tahoe.CHK.Server (StorageServerID)
 
-newtype KeyPair = KeyPair {toPrivateKey :: RSA.PrivateKey}
+newtype KeyPair = KeyPair {toPrivateKey :: RSA.PrivateKey} deriving newtype (Show)
 
 toPublicKey :: KeyPair -> RSA.PublicKey
 toPublicKey = RSA.private_pub . toPrivateKey
 
 newtype Verification = Verification {unVerification :: RSA.PublicKey}
 newtype Signature = Signature {unSignature :: RSA.PrivateKey}
+    deriving newtype (Eq, Show)
+
 data Write = Write {unWrite :: AES128, writeKeyBytes :: ByteArray.ScrubbedBytes}
+instance Show Write where
+    show (Write _ bs) = T.unpack $ T.concat ["<WriteKey ", encodeBase32Unpadded (ByteArray.convert bs), ">"]
+
 data Read = Read {unRead :: AES128, readKeyBytes :: ByteArray.ScrubbedBytes}
 newtype StorageIndex = StorageIndex {unStorageIndex :: B.ByteString}
 
@@ -74,10 +81,10 @@ mutableWriteKeyTag = "allmydata_mutable_privkey_to_writekey_v1"
 -- | Compute the read key for a given write key for an SDMF share.
 deriveReadKey :: Write -> Maybe Read
 deriveReadKey w =
-    Read <$> key <*> pure sbs
+    Read <$> key <*> pure (ByteArray.convert sbs)
   where
-    sbs = writeKeyBytes w
-    key = maybeCryptoError . cipherInit . taggedHash keyLength mutableReadKeyTag . ByteArray.convert $ sbs
+    sbs = taggedHash keyLength mutableReadKeyTag . ByteArray.convert . writeKeyBytes $ w
+    key = maybeCryptoError . cipherInit $ sbs
 
 mutableReadKeyTag :: B.ByteString
 mutableReadKeyTag = "allmydata_mutable_writekey_to_readkey_v1"
@@ -85,10 +92,10 @@ mutableReadKeyTag = "allmydata_mutable_writekey_to_readkey_v1"
 -- | Compute the data encryption/decryption key for a given read key for an SDMF share.
 deriveDataKey :: SDMF_IV -> Read -> Maybe Data
 deriveDataKey (SDMF_IV iv) r =
-    Data <$> key <*> pure sbs
+    Data <$> key <*> pure (ByteArray.convert sbs)
   where
-    sbs = readKeyBytes r
-    key = maybeCryptoError . cipherInit . taggedPairHash keyLength mutableDataKeyTag (B.pack . ByteArray.unpack $ iv) . ByteArray.convert $ sbs
+    sbs = B.take keyLength . taggedPairHash keyLength mutableDataKeyTag (B.pack . ByteArray.unpack $ iv) . ByteArray.convert . readKeyBytes $ r
+    key = maybeCryptoError . cipherInit $ sbs
 
 mutableDataKeyTag :: B.ByteString
 mutableDataKeyTag = "allmydata_mutable_readkey_to_datakey_v1"
@@ -108,4 +115,49 @@ verificationKeyToBytes = LB.toStrict . encodeASN1 DER . flip toASN1 [] . PubKeyR
  PublicKey.
 -}
 signatureKeyToBytes :: Signature -> B.ByteString
-signatureKeyToBytes = LB.toStrict . encodeASN1 DER . flip toASN1 [] . PrivKeyRSA . unSignature
+signatureKeyToBytes = LB.toStrict . encodeASN1 DER . toPKCS8
+  where
+    -- The ASN1Object instance for PrivKeyRSA can interpret an x509
+    -- "Private-Key Information" (aka PKCS8; see RFC 5208, section 5)
+    -- structure but it _produces_ some other format.  We must have exactly
+    -- this format.
+    --
+    -- XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    --
+    -- RFC 5208 says:
+    --
+    --    privateKey is an octet string whose contents are the value of the
+    --    private key.  The interpretation of the contents is defined in the
+    --    registration of the private-key algorithm.  For an RSA private key,
+    --    for example, the contents are a BER encoding of a value of type
+    --    RSAPrivateKey.
+    --
+    -- The ASN.1 BER encoding for a given structure is *not guaranteed to be
+    -- unique*.  This means that in general there is no guarantee of a unique
+    -- bytes representation of a signature key in this scheme so *key
+    -- derivations are not unique*.  If any two implementations disagree on
+    -- this encoding (which BER allows them to do) they will not interoperate.
+    toPKCS8 (Signature privKey) =
+        [ Start Sequence
+        , IntVal 0
+        , Start Sequence
+        , OID [1, 2, 840, 113549, 1, 1, 1]
+        , Null
+        , End Sequence
+        , -- Our ASN.1 encoder doesn't even pretend to support BER.  Use DER!
+          -- It results in the same bytes as Tahoe-LAFS is working with so ...
+          -- Maybe we're lucky or maybe Tahoe-LAFS isn't actually following
+          -- the spec.
+          OctetString (LB.toStrict . encodeASN1 DER . toASN1 (PrivKeyRSA privKey) $ [])
+        , End Sequence
+        ]
+
+-- | Decode a private key from the Tahoe-LAFS canonical bytes representation.
+signatureKeyFromBytes :: B.ByteString -> Either String Signature
+signatureKeyFromBytes bs = do
+    asn1s <- first show $ decodeASN1' DER bs
+    (key, extra) <- fromASN1 asn1s
+    when (extra /= []) (Left $ "left over data: " <> show extra)
+    case key of
+        (PrivKeyRSA privKey) -> Right $ Signature privKey
+        _ -> Left ("Expect RSA private key, found " <> show key)
