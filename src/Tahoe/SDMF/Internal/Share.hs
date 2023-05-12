@@ -3,8 +3,7 @@ module Tahoe.SDMF.Internal.Share where
 
 import Control.Monad (unless)
 import Crypto.Cipher.AES (AES128)
-import Crypto.Cipher.Types (Cipher (cipherInit), IV, makeIV)
-import Crypto.Error (maybeCryptoError)
+import Crypto.Cipher.Types (IV, makeIV)
 import qualified Crypto.PubKey.RSA.Types as RSA
 import Data.ASN1.BinaryEncoding (DER (DER))
 import Data.ASN1.Encoding (ASN1Encoding (encodeASN1), decodeASN1')
@@ -14,12 +13,11 @@ import Data.Binary.Get (bytesRead, getByteString, getLazyByteString, getRemainin
 import Data.Binary.Put (putByteString, putLazyByteString, putWord16be, putWord32be, putWord64be, putWord8)
 import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString as B
-import Data.ByteString.Base32 (encodeBase32Unpadded)
 import qualified Data.ByteString.Lazy as LB
-import qualified Data.Text as T
 import Data.Word (Word16, Word64, Word8)
 import Data.X509 (PubKey (PubKeyRSA))
 import Tahoe.CHK.Merkle (MerkleTree, leafHashes)
+import Tahoe.SDMF.Internal.Keys (SDMF_IV (..))
 
 hashSize :: Int
 hashSize = 32
@@ -89,13 +87,6 @@ data Share = Share
       shareEncryptedPrivateKey :: B.ByteString
     }
     deriving (Eq, Show)
-
-newtype SDMF_IV = SDMF_IV (IV AES128)
-    deriving (Eq)
-    deriving newtype (ByteArray.ByteArrayAccess)
-
-instance Show SDMF_IV where
-    show (SDMF_IV iv) = T.unpack . T.toLower . encodeBase32Unpadded . ByteArray.convert $ iv
 
 instance Binary Share where
     put Share{..} = do
