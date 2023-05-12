@@ -64,6 +64,7 @@ library
   hs-source-dirs:     src
   exposed-modules:
     Tahoe.SDMF
+    Tahoe.SDMF.Internal.Capability
     Tahoe.SDMF.Internal.Keys
     Tahoe.SDMF.Internal.Share
     Tahoe.SDMF.Keys
