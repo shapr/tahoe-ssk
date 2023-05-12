@@ -85,6 +85,7 @@ tests =
                     expectedReadKey = ("6ir6husgx6ubro3tbimmzskqri" :: T.Text)
                     expectedDataKey = ("bbj67exlrkfcaqutwlgwvukbfe" :: T.Text)
                     expectedStorageIndex = ("cmkuloz2t6fhsh7npxxteba6sq" :: T.Text)
+                    expectedWriteEnablerMaster = ("qgptod5dsanfep2kbimvxl2yixndnoks7ndoeamczj7g33gokcvq" :: T.Text)
 
                     -- Derive all the keys.
                     (Just iv) = Keys.SDMF_IV <$> makeIV (B.replicate 16 0x42)
@@ -92,6 +93,7 @@ tests =
                     (Just r@(Keys.Read _ derivedReadKey)) = Keys.deriveReadKey w
                     (Just (Keys.Data _ derivedDataKey)) = Keys.deriveDataKey iv r
                     (Keys.StorageIndex derivedStorageIndex) = Keys.deriveStorageIndex r
+                    (Keys.WriteEnablerMaster derivedWriteEnablerMaster) = Keys.deriveWriteEnablerMaster w
 
                     -- A helper to format a key as text for convenient
                     -- comparison to expected value.
@@ -103,21 +105,25 @@ tests =
                         -- instance so we go the other way.  We're not worried about
                         -- the safety of these test-only keys anyway.
                         assertEqual
-                            "expected writekey /= derived writekey"
+                            "writekey: expected /= derived"
                             expectedWriteKey
                             (fmtKey derivedWriteKey)
                         assertEqual
-                            "expected readkey /= derived readkey"
+                            "readkey: expected /= derived"
                             expectedReadKey
                             (fmtKey derivedReadKey)
                         assertEqual
-                            "expected datakey /= derived datakey"
+                            "datakey: expected /= derived"
                             expectedDataKey
                             (fmtKey derivedDataKey)
                         assertEqual
-                            "expected storage index /= derived storage index"
+                            "storage index: expected /= derived"
                             expectedStorageIndex
                             (T.toLower . encodeBase32Unpadded $ derivedStorageIndex)
+                        assertEqual
+                            "write enabler master: expected /= derived"
+                            expectedWriteEnablerMaster
+                            (fmtKey derivedWriteEnablerMaster)
         , testProperty "Share round-trips through bytes" $
             property $ do
                 share <- forAll shares

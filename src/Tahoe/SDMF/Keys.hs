@@ -8,9 +8,11 @@ import Tahoe.SDMF.Internal.Keys (
     Signature (..),
     StorageIndex (..),
     Write (..),
+    WriteEnablerMaster (..),
     deriveDataKey,
     deriveReadKey,
     deriveStorageIndex,
+    deriveWriteEnablerMaster,
     deriveWriteKey,
     toPublicKey,
  )

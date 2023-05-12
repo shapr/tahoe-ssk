@@ -38,8 +38,9 @@ instance Show Write where
 data Read = Read {unRead :: AES128, readKeyBytes :: ByteArray.ScrubbedBytes}
 newtype StorageIndex = StorageIndex {unStorageIndex :: B.ByteString}
 
-newtype WriteEnablerMaster = WriteEnablerMaster B.ByteString
-data WriteEnabler = WriteEnabler StorageServerID B.ByteString
+newtype WriteEnablerMaster = WriteEnablerMaster ByteArray.ScrubbedBytes
+
+data WriteEnabler = WriteEnabler StorageServerID ByteArray.ScrubbedBytes
 
 data Data = Data {unData :: AES128, dataKeyBytes :: ByteArray.ScrubbedBytes}
 
@@ -97,10 +98,10 @@ deriveDataKey (SDMF_IV iv) r =
     sbs = B.take keyLength . taggedPairHash keyLength mutableDataKeyTag (B.pack . ByteArray.unpack $ iv) . ByteArray.convert . readKeyBytes $ r
     key = maybeCryptoError . cipherInit $ sbs
 
--- | Compute the storage index for a given read key for an SDMF share.
 mutableDataKeyTag :: B.ByteString
 mutableDataKeyTag = "allmydata_mutable_readkey_to_datakey_v1"
 
+-- | Compute the storage index for a given read key for an SDMF share.
 deriveStorageIndex :: Read -> StorageIndex
 deriveStorageIndex r = StorageIndex si
   where
@@ -108,6 +109,19 @@ deriveStorageIndex r = StorageIndex si
 
 mutableStorageIndexTag :: B.ByteString
 mutableStorageIndexTag = "allmydata_mutable_readkey_to_storage_index_v1"
+
+{- | Derive the "write enabler master" secret for a given write key for an
+ SDMF share.
+-}
+deriveWriteEnablerMaster :: Write -> WriteEnablerMaster
+deriveWriteEnablerMaster w = WriteEnablerMaster bs
+  where
+    -- This one shouldn't be truncated.  Set the length to the size of sha256d
+    -- output.
+    bs = ByteArray.convert . taggedHash 32 mutableWriteEnablerMasterTag . ByteArray.convert . writeKeyBytes $ w
+
+mutableWriteEnablerMasterTag :: B.ByteString
+mutableWriteEnablerMasterTag = "allmydata_mutable_writekey_to_write_enabler_master_v1"
 
 {- | Encode a public key to the Tahoe-LAFS canonical bytes representation -
  X.509 SubjectPublicKeyInfo of the ASN.1 DER serialization of an RSA
