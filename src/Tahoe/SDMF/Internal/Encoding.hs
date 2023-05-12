@@ -92,10 +92,6 @@ capabilityForKeyPair keypair =
     verificationKeyHash = hashVerificationKey . RSA.toPublicKey $ keypair
     writerReader = deriveReader <$> writerWriteKey <*> pure verificationKeyHash
 
--- | Compute the write key for a given signature key for an SDMF share.
-deriveWriteKey :: RSA.PrivateKey -> Maybe AESKey128
-deriveWriteKey = buildKey . taggedHash writeKeyLength mutableWriteKeyTag . signatureKeyToBytes
-
 maybeToEither :: a -> Maybe b -> Either a b
 maybeToEither a Nothing = Left a
 maybeToEither _ (Just b) = Right b

@@ -50,6 +50,9 @@ tests =
 
                 recovered <- Tahoe.SDMF.decode writerReader (zip [0 ..] shares')
                 diff ciphertext (==) recovered
+        , testProperty "Plaintext round-trips through encrypt . decrypt" $
+            property $
+                do
         ]
 
 {- | Load a known-correct SDMF bucket and assert that bytes in the slot it
