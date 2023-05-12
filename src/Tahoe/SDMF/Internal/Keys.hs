@@ -20,7 +20,6 @@ import qualified Data.ByteString.Lazy as LB
 import qualified Data.Text as T
 import Data.X509 (PrivKey (PrivKeyRSA), PubKey (PubKeyRSA))
 import Tahoe.CHK.Crypto (taggedHash, taggedPairHash)
-import Tahoe.CHK.Server (StorageServerID)
 
 newtype KeyPair = KeyPair {toPrivateKey :: RSA.PrivateKey} deriving newtype (Show)
 
@@ -40,7 +39,7 @@ newtype StorageIndex = StorageIndex {unStorageIndex :: B.ByteString}
 
 newtype WriteEnablerMaster = WriteEnablerMaster ByteArray.ScrubbedBytes
 
-data WriteEnabler = WriteEnabler StorageServerID ByteArray.ScrubbedBytes
+newtype WriteEnabler = WriteEnabler ByteArray.ScrubbedBytes
 
 data Data = Data {unData :: AES128, dataKeyBytes :: ByteArray.ScrubbedBytes}
 
@@ -95,6 +94,7 @@ deriveDataKey :: SDMF_IV -> Read -> Maybe Data
 deriveDataKey (SDMF_IV iv) r =
     Data <$> key <*> pure (ByteArray.convert sbs)
   where
+    -- XXX taggedPairHash has a bug where it doesn't ever truncate.
     sbs = B.take keyLength . taggedPairHash keyLength mutableDataKeyTag (B.pack . ByteArray.unpack $ iv) . ByteArray.convert . readKeyBytes $ r
     key = maybeCryptoError . cipherInit $ sbs
 
@@ -122,6 +122,19 @@ deriveWriteEnablerMaster w = WriteEnablerMaster bs
 
 mutableWriteEnablerMasterTag :: B.ByteString
 mutableWriteEnablerMasterTag = "allmydata_mutable_writekey_to_write_enabler_master_v1"
+
+{- | Derive the "write enabler" secret for a given peer and "write enabler
+ master" for an SDMF share.
+-}
+deriveWriteEnabler :: B.ByteString -> WriteEnablerMaster -> WriteEnabler
+deriveWriteEnabler peerid (WriteEnablerMaster master) = WriteEnabler bs
+  where
+    -- This one shouldn't be truncated.  Set the length to the size of sha256d
+    -- output.
+    bs = ByteArray.convert . taggedPairHash 32 mutableWriteEnablerTag (ByteArray.convert master) $ peerid
+
+mutableWriteEnablerTag :: B.ByteString
+mutableWriteEnablerTag = "allmydata_mutable_write_enabler_master_and_nodeid_to_write_enabler_v1"
 
 {- | Encode a public key to the Tahoe-LAFS canonical bytes representation -
  X.509 SubjectPublicKeyInfo of the ASN.1 DER serialization of an RSA
