@@ -1,9 +1,8 @@
 module Generators where
 
+import Crypto.Cipher.Types (makeIV)
 import Crypto.Hash (HashAlgorithm (hashDigestSize))
 import Crypto.Hash.Algorithms (SHA256 (SHA256))
-import qualified Crypto.PubKey.RSA.Types as RSA
-import Crypto.Types (IV (..))
 import Data.ASN1.BinaryEncoding (DER (DER))
 import Data.ASN1.Encoding (ASN1Decoding (decodeASN1), ASN1Encoding (encodeASN1))
 import Data.ASN1.Types (ASN1Object (fromASN1, toASN1))
@@ -19,6 +18,7 @@ import qualified Hedgehog.Range as Range
 import Tahoe.CHK.Merkle (MerkleTree (..), makeTreePartial)
 import Tahoe.SDMF (Share (..))
 import Tahoe.SDMF.Internal.Share (HashChain (HashChain))
+import qualified Tahoe.SDMF.Keys as Keys
 
 rootHashLength :: Int
 rootHashLength = 32
@@ -33,22 +33,26 @@ signatureLength = Range.linear 250 260
  semantically valid.
 -}
 shares :: MonadGen m => m Share
-shares =
-    genRSAKeys >>= \keypair ->
-        Share
-            <$> Gen.word64 Range.exponentialBounded -- shareSequenceNumber
-            <*> Gen.bytes (Range.singleton rootHashLength) -- shareRootHash
-            <*> (IV <$> Gen.bytes (Range.singleton ivLength)) -- shareIV
-            <*> Gen.word8 Range.exponentialBounded -- shareTotalShares
-            <*> Gen.word8 Range.exponentialBounded -- shareRequiredShares
-            <*> Gen.word64 Range.exponentialBounded -- shareSegmentSize
-            <*> Gen.word64 Range.exponentialBounded -- shareDataLength
-            <*> pure (RSA.toPublicKey keypair) -- shareVerificationKey
-            <*> Gen.bytes signatureLength -- shareSignature
-            <*> shareHashChains -- shareHashChain
-            <*> merkleTrees (Range.singleton 1) -- shareBlockHashTree
-            <*> (LB.fromStrict <$> Gen.bytes (Range.exponential 0 1024)) -- shareData
-            <*> (pure . LB.toStrict . toDER . PrivKeyRSA . RSA.toPrivateKey) keypair -- shareEncryptedPrivateKey
+shares = do
+    keypair <- genRSAKeys
+    iv <- makeIV <$> Gen.bytes (Range.singleton ivLength)
+    case iv of
+        Nothing -> error "Could not build IV for SDMF share"
+        Just iv' ->
+            Share
+                <$> Gen.word64 Range.exponentialBounded -- shareSequenceNumber
+                <*> Gen.bytes (Range.singleton rootHashLength) -- shareRootHash
+                <*> pure (Keys.SDMF_IV iv') -- shareIV
+                <*> Gen.word8 Range.exponentialBounded -- shareTotalShares
+                <*> Gen.word8 Range.exponentialBounded -- shareRequiredShares
+                <*> Gen.word64 Range.exponentialBounded -- shareSegmentSize
+                <*> Gen.word64 Range.exponentialBounded -- shareDataLength
+                <*> pure (Keys.toPublicKey keypair) -- shareVerificationKey
+                <*> Gen.bytes signatureLength -- shareSignature
+                <*> shareHashChains -- shareHashChain
+                <*> merkleTrees (Range.singleton 1) -- shareBlockHashTree
+                <*> (LB.fromStrict <$> Gen.bytes (Range.exponential 0 1024)) -- shareData
+                <*> (pure . LB.toStrict . toDER . PrivKeyRSA . Keys.toPrivateKey) keypair -- shareEncryptedPrivateKey
   where
     toDER = encodeASN1 DER . flip toASN1 []
 
@@ -60,7 +64,7 @@ shares =
  challenging, this implementation just knows a few RSA key pairs already and
  will give back one of them.
 -}
-genRSAKeys :: MonadGen m => m RSA.KeyPair
+genRSAKeys :: MonadGen m => m Keys.KeyPair
 genRSAKeys = Gen.element (map rsaKeyPair rsaKeyPairBytes)
 
 -- I'm not sure how to do IO in MonadGen so do the IO up front unsafely (but
@@ -69,13 +73,13 @@ rsaKeyPairBytes :: [LB.ByteString]
 {-# NOINLINE rsaKeyPairBytes #-}
 rsaKeyPairBytes = unsafePerformIO $ mapM (\n -> LB.readFile ("test/data/rsa-privkey-" <> show n <> ".der")) [0 .. 4 :: Int]
 
-rsaKeyPair :: LB.ByteString -> RSA.KeyPair
+rsaKeyPair :: LB.ByteString -> Keys.KeyPair
 rsaKeyPair bs = do
     let (Right kp) = do
             asn1s <- first show (decodeASN1 DER bs)
             (r, _) <- fromASN1 asn1s
             case r of
-                PrivKeyRSA pk -> pure $ RSA.KeyPair pk
+                PrivKeyRSA pk -> pure $ Keys.KeyPair pk
                 _ -> error "Expected RSA Private Key"
     kp
 

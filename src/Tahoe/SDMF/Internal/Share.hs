@@ -2,20 +2,22 @@
 module Tahoe.SDMF.Internal.Share where
 
 import Control.Monad (unless)
-import Crypto.Cipher.AES128 (AESKey128)
+import Crypto.Cipher.AES (AES128)
+import Crypto.Cipher.Types (IV, makeIV)
 import qualified Crypto.PubKey.RSA.Types as RSA
-import Crypto.Types (IV (IV, initializationVector))
 import Data.ASN1.BinaryEncoding (DER (DER))
 import Data.ASN1.Encoding (ASN1Encoding (encodeASN1), decodeASN1')
 import Data.ASN1.Types (ASN1Object (fromASN1, toASN1))
 import Data.Binary (Binary (..), Get, getWord8)
 import Data.Binary.Get (bytesRead, getByteString, getLazyByteString, getRemainingLazyByteString, getWord16be, getWord32be, getWord64be, isEmpty, isolate)
 import Data.Binary.Put (putByteString, putLazyByteString, putWord16be, putWord32be, putWord64be, putWord8)
+import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
 import Data.Word (Word16, Word64, Word8)
 import Data.X509 (PrivKey (PrivKeyRSA), PubKey (PubKeyRSA))
 import Tahoe.CHK.Merkle (MerkleTree, leafHashes)
+import Tahoe.SDMF.Internal.Keys (SDMF_IV (..))
 
 hashSize :: Int
 hashSize = 32
@@ -57,7 +59,7 @@ data Share = Share
     , -- | "R" (root of share hash merkle tree)
       shareRootHash :: B.ByteString
     , -- | The IV for encryption of share data.
-      shareIV :: IV AESKey128
+      shareIV :: SDMF_IV
     , -- | The total number of encoded shares (k).
       shareTotalShares :: Word8
     , -- | The number of shares required for decoding (N).
@@ -91,7 +93,7 @@ instance Binary Share where
         putWord8 0
         putWord64be shareSequenceNumber
         putByteString shareRootHash
-        putByteString . initializationVector $ shareIV
+        putByteString . ByteArray.convert $ shareIV
         putWord8 shareRequiredShares
         putWord8 shareTotalShares
         putWord64be shareSegmentSize
@@ -125,7 +127,12 @@ instance Binary Share where
         unless (version == 0) (fail $ "Only version 0 is supported; got version " <> show version)
         shareSequenceNumber <- getWord64be
         shareRootHash <- getByteString 32
-        shareIV <- IV <$> getByteString 16
+        ivBytes <- getByteString 16
+        shareIV <-
+            SDMF_IV <$> case makeIV ivBytes of
+                Nothing -> fail "Could not decode IV"
+                Just iv -> pure iv
+
         shareRequiredShares <- getWord8
         shareTotalShares <- getWord8
         shareSegmentSize <- getWord64be
