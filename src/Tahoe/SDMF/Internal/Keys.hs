@@ -1,4 +1,7 @@
--- | Key types, derivations, and related functionality for SDMF.
+{- | Key types, derivations, and related functionality for SDMF.
+
+ See docs/specifications/mutable.rst for details.
+-}
 module Tahoe.SDMF.Internal.Keys where
 
 import Prelude hiding (Read)
@@ -94,7 +97,8 @@ deriveDataKey :: SDMF_IV -> Read -> Maybe Data
 deriveDataKey (SDMF_IV iv) r =
     Data <$> key <*> pure (ByteArray.convert sbs)
   where
-    -- XXX taggedPairHash has a bug where it doesn't ever truncate.
+    -- XXX taggedPairHash has a bug where it doesn't ever truncate so we
+    -- truncate for it.
     sbs = B.take keyLength . taggedPairHash keyLength mutableDataKeyTag (B.pack . ByteArray.unpack $ iv) . ByteArray.convert . readKeyBytes $ r
     key = maybeCryptoError . cipherInit $ sbs
 
