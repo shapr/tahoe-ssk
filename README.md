@@ -53,8 +53,18 @@ We want a library that:
   * Mainly armeabi and armv7
 * Is suitable for real-world security purposes
   * not a demo or a toy library
+    * documents its limitations
+  * is well-tested
   * avoids real-world pitfalls (side-channel attacks, etc), not just textbook issues
   * has more than a handful of other users
+  * is well-maintained
+    * developers are responsive to security reports
+    * has a channel for security-related disclosures
+	* has sound documentation for proper, safe usage
+
+And,
+of course,
+implements the required functionality.
 
 ### SHA256
 
