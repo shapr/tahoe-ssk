@@ -16,8 +16,8 @@ import Hedgehog (MonadGen)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Tahoe.CHK.Merkle (MerkleTree (..), makeTreePartial)
-import Tahoe.SDMF (KeyPair (..), Share (..), toPublicKey)
-import Tahoe.SDMF.Internal.Share (HashChain (HashChain), SDMF_IV (SDMF_IV))
+import Tahoe.SDMF (Share (..))
+import Tahoe.SDMF.Internal.Share (HashChain (HashChain), SDMF_IV (..))
 
 rootHashLength :: Int
 rootHashLength = 32
@@ -27,6 +27,10 @@ ivLength = 16
 
 signatureLength :: Range.Range Int
 signatureLength = Range.linear 250 260
+
+newtype KeyPair = KeyPair RSA.PrivateKey
+toPrivateKey (KeyPair privKey) = privKey
+toPublicKey = RSA.private_pub . toPrivateKey
 
 {- | Generate SDMF shares.  The contents of the share are not necessarily
  semantically valid.
