@@ -143,3 +143,4 @@ executable make-keypairs
     , base
     , bytestring
     , cryptonite
+    , x509
