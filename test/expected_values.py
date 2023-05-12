@@ -4,7 +4,11 @@
 from allmydata.crypto import rsa
 from allmydata.mutable.common import derive_mutable_keys
 from allmydata.util import base32
-from allmydata.util.hashutil import ssk_readkey_hash, ssk_readkey_data_hash
+from allmydata.util.hashutil import (
+    ssk_readkey_hash,
+    ssk_readkey_data_hash,
+    ssk_storage_index_hash,
+)
 
 # Arbitrarily select an IV.
 iv = b"\x42" * 16
@@ -15,11 +19,13 @@ with open("data/rsa-privkey-0.der", "rb") as f:
 writekey, encprivkey, fingerprint = derive_mutable_keys((pub, priv))
 readkey = ssk_readkey_hash(writekey)
 datakey = ssk_readkey_data_hash(iv, readkey)
+storage_index = ssk_storage_index_hash(readkey)
 
 print("SDMF")
 print("writekey: ", base32.b2a(writekey))
 print("readkey: ", base32.b2a(readkey))
 print("datakey: ", base32.b2a(datakey))
+print("storage index: ", base32.b2a(storage_index))
 print("encrypted private key: ", base32.b2a(encprivkey))
 print("signature key hash: ", base32.b2a(fingerprint))
 

@@ -97,8 +97,14 @@ deriveDataKey (SDMF_IV iv) r =
     sbs = B.take keyLength . taggedPairHash keyLength mutableDataKeyTag (B.pack . ByteArray.unpack $ iv) . ByteArray.convert . readKeyBytes $ r
     key = maybeCryptoError . cipherInit $ sbs
 
+-- | Compute the storage index for a given read key for an SDMF share.
 mutableDataKeyTag :: B.ByteString
 mutableDataKeyTag = "allmydata_mutable_readkey_to_datakey_v1"
+
+deriveStorageIndex :: Read -> StorageIndex
+deriveStorageIndex r = StorageIndex si
+  where
+    si = taggedHash keyLength mutableStorageIndexTag . ByteArray.convert . readKeyBytes $ r
 
 mutableStorageIndexTag :: B.ByteString
 mutableStorageIndexTag = "allmydata_mutable_readkey_to_storage_index_v1"

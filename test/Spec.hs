@@ -84,12 +84,14 @@ tests =
                     expectedWriteKey = ("v7iymuxkc5yv2fomi3xwbjdd4e" :: T.Text)
                     expectedReadKey = ("6ir6husgx6ubro3tbimmzskqri" :: T.Text)
                     expectedDataKey = ("bbj67exlrkfcaqutwlgwvukbfe" :: T.Text)
+                    expectedStorageIndex = ("cmkuloz2t6fhsh7npxxteba6sq" :: T.Text)
 
                     -- Derive all the keys.
                     (Just iv) = Keys.SDMF_IV <$> makeIV (B.replicate 16 0x42)
                     (Just w@(Keys.Write _ derivedWriteKey)) = Keys.deriveWriteKey sigKey
                     (Just r@(Keys.Read _ derivedReadKey)) = Keys.deriveReadKey w
-                    (Just d@(Keys.Data _ derivedDataKey)) = Keys.deriveDataKey iv r
+                    (Just (Keys.Data _ derivedDataKey)) = Keys.deriveDataKey iv r
+                    (Keys.StorageIndex derivedStorageIndex) = Keys.deriveStorageIndex r
 
                     -- A helper to format a key as text for convenient
                     -- comparison to expected value.
@@ -112,6 +114,10 @@ tests =
                             "expected datakey /= derived datakey"
                             expectedDataKey
                             (fmtKey derivedDataKey)
+                        assertEqual
+                            "expected storage index /= derived storage index"
+                            expectedStorageIndex
+                            (T.toLower . encodeBase32Unpadded $ derivedStorageIndex)
         , testProperty "Share round-trips through bytes" $
             property $ do
                 share <- forAll shares
