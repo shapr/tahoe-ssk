@@ -1,4 +1,4 @@
-cabal-version:   2.4
+cabal-version:      2.4
 
 -- The cabal-version field refers to the version of the .cabal specification,
 -- and can be different from the cabal-install (the tool) version and the
@@ -12,7 +12,7 @@ cabal-version:   2.4
 --   http://haskell.org/cabal/users-guide/
 --
 -- The name of the package.
-name:            tahoe-ssk
+name:               tahoe-ssk
 
 -- The package version.
 -- See the Haskell package versioning policy (PVP) for standards
@@ -21,7 +21,7 @@ name:            tahoe-ssk
 -- PVP summary:     +-+------- breaking API changes
 --                  | | +----- non-breaking API additions
 --                  | | | +--- code changes with no API change
-version:         0.1.0.0
+version:            0.1.0.0
 
 -- A short (one-line) description of the package.
 synopsis:
@@ -31,30 +31,31 @@ synopsis:
 -- description:
 
 -- URL for the project homepage or repository.
-homepage:        https://whetstone.private.storage/PrivateStorage/tahoe-ssk
+homepage:           https://whetstone.private.storage/PrivateStorage/tahoe-ssk
 
 -- The license under which the package is released.
-license:         BSD-3-Clause
+license:            BSD-3-Clause
 
 -- The file containing the license text.
-license-file:    LICENSE
+license-file:       LICENSE
 
 -- The package author(s).
-author:          Jean-Paul Calderone
+author:             Jean-Paul Calderone
 
 -- An email address to which users can send suggestions, bug reports, and patches.
-maintainer:      jean-paul@private.storage
+maintainer:         jean-paul@private.storage
 
 -- A copyright notice.
 -- copyright:
-category:        Cryptography,Library,Parsers,Security
-build-type:      Simple
+category:           Cryptography,Library,Parsers,Security
+build-type:         Simple
 
 -- Extra doc files to be distributed with the package, such as a CHANGELOG or a README.
-extra-doc-files: CHANGELOG.md
+extra-doc-files:    CHANGELOG.md
 
--- Extra source files to be distributed with the package, such as examples, or a tutorial module.
--- extra-source-files:
+-- Extra source files to be distributed with the package, such as examples, or
+-- a tutorial module.  In our case, test data.
+extra-source-files: test/data/*
 
 common warnings
   ghc-options: -Wall
@@ -63,7 +64,9 @@ library
   hs-source-dirs:     src
   exposed-modules:
     Tahoe.SDMF
+    Tahoe.SDMF.Internal.Keys
     Tahoe.SDMF.Internal.Share
+    Tahoe.SDMF.Keys
 
   build-depends:
     , asn1-encoding
@@ -120,15 +123,18 @@ test-suite tahoe-ssk-test
     , asn1-encoding
     , asn1-types
     , base            ^>=4.14.3.0
+    , base32
     , binary
     , bytestring
     , cryptonite
     , hedgehog
+    , memory
     , tahoe-chk
     , tahoe-ssk
     , tasty
     , tasty-hedgehog
     , tasty-hunit
+    , text
     , x509
 
 -- A helper for generating RSA key pairs for use by the test suite.
@@ -143,4 +149,5 @@ executable make-keypairs
     , base
     , bytestring
     , cryptonite
+    , tahoe-ssk
     , x509
