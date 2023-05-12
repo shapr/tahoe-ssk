@@ -69,12 +69,12 @@ library
     , asn1-encoding
     , asn1-types
     , base
+    , base32
     , binary
     , bytestring
-    , crypto-api
-    , crypto-pubkey-types
     , cryptonite
-    , RSA
+    , memory
+    , text
     , x509
 
   -- This dependency isn't ideal.  Move common bits out to
@@ -119,14 +119,11 @@ test-suite tahoe-ssk-test
   build-depends:
     , asn1-encoding
     , asn1-types
-    , base                 ^>=4.14.3.0
+    , base            ^>=4.14.3.0
     , binary
     , bytestring
-    , crypto-api
-    , crypto-pubkey-types
     , cryptonite
     , hedgehog
-    , RSA
     , tahoe-chk
     , tahoe-ssk
     , tasty
@@ -145,6 +142,4 @@ executable make-keypairs
     , asn1-types
     , base
     , bytestring
-    , crypto-api
-    , crypto-pubkey-types
-    , RSA
+    , cryptonite
