@@ -8,14 +8,17 @@ import Prelude hiding (Read)
 
 import Control.Monad (when)
 import Crypto.Cipher.AES (AES128)
-import Crypto.Cipher.Types (BlockCipher (ctrCombine), Cipher (cipherInit, cipherKeySize), IV, KeySizeSpecifier (KeySizeFixed), nullIV)
-import Crypto.Error (maybeCryptoError)
+import Crypto.Cipher.Types (BlockCipher (ctrCombine), Cipher (cipherInit, cipherKeySize), IV, KeySizeSpecifier (KeySizeFixed), makeIV, nullIV)
+import Crypto.Error (CryptoFailable (CryptoPassed), maybeCryptoError)
 import qualified Crypto.PubKey.RSA as RSA
 import Crypto.Random (MonadRandom)
 import Data.ASN1.BinaryEncoding (DER (DER))
 import Data.ASN1.Encoding (ASN1Encoding (encodeASN1), decodeASN1')
 import Data.ASN1.Types (ASN1 (End, IntVal, Null, OID, OctetString, Start), ASN1ConstructionType (Sequence), ASN1Object (fromASN1, toASN1))
 import Data.Bifunctor (Bifunctor (first))
+import Data.Binary (Binary (get, put))
+import Data.Binary.Get (getByteString)
+import Data.Binary.Put (putByteString)
 import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString as B
 import Data.ByteString.Base32 (encodeBase32Unpadded)
@@ -42,6 +45,13 @@ newtype Signature = Signature {unSignature :: RSA.PrivateKey}
     deriving newtype (Eq, Show)
 
 data Write = Write {unWrite :: AES128, writeKeyBytes :: ByteArray.ScrubbedBytes}
+
+instance Binary Write where
+    put = putByteString . ByteArray.convert . writeKeyBytes
+    get = do
+        writeKeyBytes <- ByteArray.convert <$> getByteString 16
+        let (CryptoPassed unWrite) = cipherInit writeKeyBytes
+        pure Write{..}
 
 instance Show Write where
     show (Write _ bs) = T.unpack $ T.concat ["<WriteKey ", encodeBase32Unpadded (ByteArray.convert bs), ">"]

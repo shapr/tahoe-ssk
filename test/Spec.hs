@@ -11,6 +11,7 @@ import Hedgehog (
     tripping,
  )
 
+import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Crypto.Cipher.Types (makeIV)
 import Data.ASN1.BinaryEncoding (DER (DER))
@@ -19,7 +20,7 @@ import qualified Data.Binary as Binary
 import Data.Binary.Get (ByteOffset)
 import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString as B
-import Data.ByteString.Base32 (encodeBase32Unpadded)
+import Data.ByteString.Base32 (decodeBase32Unpadded, encodeBase32Unpadded)
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Text as T
 import Generators (encodingParameters, genRSAKeys, shareHashChains, shares)
@@ -171,7 +172,32 @@ tests =
                             Keys.deriveDataKey iv readKey
                     plaintext <- forAll $ LB.fromStrict <$> Gen.bytes (Range.exponential 1 1024)
                     tripping plaintext (Tahoe.SDMF.encrypt dataKey iv) (Just . Tahoe.SDMF.decrypt dataKey iv)
+        , testCase "Recover plaintext from a known-correct slot" $ do
+            s0 <- liftIO $ Binary.decode <$> (LB.readFile "test/data/3of10.0" >>= readShareFromBucket)
+            s6 <- liftIO $ Binary.decode <$> (LB.readFile "test/data/3of10.6" >>= readShareFromBucket)
+            s9 <- liftIO $ Binary.decode <$> (LB.readFile "test/data/3of10.9" >>= readShareFromBucket)
+
+            let (Right writeKey) = Binary.decode . LB.fromStrict <$> decodeBase32Unpadded "vdv6pcqkblsguvkagrblr3gopu"
+                (Just readerReadKey) = Keys.deriveReadKey writeKey
+                readerVerificationKeyHash = "junk"
+                reader = Tahoe.SDMF.Reader{..}
+            ciphertext <- Tahoe.SDMF.decode reader [(0, s0), (6, s6), (9, s9)]
+            let (Just dataKey) = Keys.deriveDataKey (Tahoe.SDMF.shareIV s0) readerReadKey
+                plaintext = Tahoe.SDMF.decrypt dataKey (Tahoe.SDMF.shareIV s0) ciphertext
+
+            print plaintext
+            pure ()
         ]
+
+readShareFromBucket :: MonadFail m => LB.ByteString -> m LB.ByteString
+readShareFromBucket bucket =
+    let withoutPrefix = LB.drop (32 + 20 + 32 + 8 + 8 + 368) bucket
+        dataSize = LB.length withoutPrefix - 4
+        shareData = LB.take dataSize withoutPrefix
+        suffix = LB.drop dataSize withoutPrefix
+     in do
+            when (suffix /= "\0\0\0\0") (fail "Cannot account for extra leases")
+            pure shareData
 
 {- | Load a known-correct SDMF bucket and assert that bytes in the slot it
  contains deserializes to a Share and then serializes back to the same bytes
@@ -187,13 +213,14 @@ knownCorrectRoundTrip n = do
     -- having to parse the prefix, we assert that the suffix is a
     -- predictable size.
     bucket <- LB.readFile ("test/data/3of10." <> show n)
-    let withoutPrefix = LB.drop (32 + 20 + 32 + 8 + 8 + 368) bucket
-        dataSize = LB.length withoutPrefix - 4
-        shareData = LB.take dataSize withoutPrefix
-        suffix = LB.drop dataSize withoutPrefix
+    shareData <- readShareFromBucket bucket
+    -- let withoutPrefix = LB.drop (32 + 20 + 32 + 8 + 8 + 368) bucket
+    --     dataSize = LB.length withoutPrefix - 4
+    --     shareData = LB.take dataSize withoutPrefix
+    --     suffix = LB.drop dataSize withoutPrefix
 
-    -- Our assumption about the data we're working on...
-    assertEqual "Cannot account for extra leases" suffix "\0\0\0\0"
+    -- -- Our assumption about the data we're working on...
+    -- assertEqual "Cannot account for extra leases" suffix "\0\0\0\0"
 
     let decoded = decode' shareData
     let encoded = (Binary.encode :: Tahoe.SDMF.Share -> LB.ByteString) <$> decoded

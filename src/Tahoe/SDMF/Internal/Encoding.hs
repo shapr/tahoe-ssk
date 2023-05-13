@@ -76,7 +76,7 @@ makeShare shareSequenceNumber shareIV shareRequiredShares shareTotalShares share
 decode :: (MonadFail m, MonadIO m) => Reader -> [(Word16, Share)] -> m LB.ByteString
 decode _ [] = fail "Cannot decode with no shares"
 decode _ s@((_, Share{shareRequiredShares, shareTotalShares, shareSegmentSize}) : shares)
-    | length shares < fromIntegral shareRequiredShares = fail $ "got " <> show (length shares) <> " shares, required " <> show shareRequiredShares
+    | length s < fromIntegral shareRequiredShares = fail $ "got " <> show (length shares) <> " shares, required " <> show shareRequiredShares
     | otherwise = do
         ciphertext <- liftIO $ zunfec (fromIntegral shareRequiredShares) (fromIntegral shareTotalShares) (take (fromIntegral shareRequiredShares) blocks)
         pure . LB.take (fromIntegral shareSegmentSize) . LB.fromStrict $ ciphertext
