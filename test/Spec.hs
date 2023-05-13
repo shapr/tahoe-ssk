@@ -11,6 +11,7 @@ import Hedgehog (
     tripping,
  )
 
+import Control.Monad.IO.Class (liftIO)
 import Crypto.Cipher.Types (makeIV)
 import Data.ASN1.BinaryEncoding (DER (DER))
 import Data.ASN1.Encoding (decodeASN1')
@@ -153,15 +154,23 @@ tests =
                 sequenceNumber <- forAll $ Gen.integral Range.exponentialBounded
                 (required, total) <- forAll encodingParameters
 
-                (shares', Tahoe.SDMF.Writer{Tahoe.SDMF.writerReader}) <- Tahoe.SDMF.encode keypair sequenceNumber required total ciphertext
+                (shares', Tahoe.SDMF.Writer{Tahoe.SDMF.writerReader}) <- liftIO $ Tahoe.SDMF.encode keypair sequenceNumber required total ciphertext
 
                 annotateShow shares'
 
                 recovered <- Tahoe.SDMF.decode writerReader (zip [0 ..] shares')
                 diff ciphertext (==) recovered
-                -- , testProperty "Plaintext round-trips through encrypt . decrypt" $
-                --     property $
-                --         do
+        , testProperty "Plaintext round-trips through encrypt . decrypt" $
+            property $
+                do
+                    keypair <- forAll genRSAKeys
+                    (Just iv) <- fmap Keys.SDMF_IV <$> (makeIV <$> forAll (Gen.bytes (Range.singleton 16)))
+                    let (Just dataKey) = do
+                            writeKey <- Keys.deriveWriteKey (Keys.toSignatureKey keypair)
+                            readKey <- Keys.deriveReadKey writeKey
+                            Keys.deriveDataKey iv readKey
+                    plaintext <- forAll $ LB.fromStrict <$> Gen.bytes (Range.exponential 1 1024)
+                    tripping plaintext (Tahoe.SDMF.encrypt dataKey iv) (Just . Tahoe.SDMF.decrypt dataKey iv)
         ]
 
 {- | Load a known-correct SDMF bucket and assert that bytes in the slot it

@@ -8,7 +8,7 @@ import Prelude hiding (Read)
 
 import Control.Monad (when)
 import Crypto.Cipher.AES (AES128)
-import Crypto.Cipher.Types (Cipher (cipherInit, cipherKeySize), IV, KeySizeSpecifier (KeySizeFixed))
+import Crypto.Cipher.Types (BlockCipher (ctrCombine), Cipher (cipherInit, cipherKeySize), IV, KeySizeSpecifier (KeySizeFixed), nullIV)
 import Crypto.Error (maybeCryptoError)
 import qualified Crypto.PubKey.RSA as RSA
 import Crypto.Random (MonadRandom)
@@ -29,7 +29,15 @@ newtype KeyPair = KeyPair {toPrivateKey :: RSA.PrivateKey} deriving newtype (Sho
 toPublicKey :: KeyPair -> RSA.PublicKey
 toPublicKey = RSA.private_pub . toPrivateKey
 
+toSignatureKey :: KeyPair -> Signature
+toSignatureKey = Signature . toPrivateKey
+
+toVerificationKey :: KeyPair -> Verification
+toVerificationKey = Verification . toPublicKey
+
 newtype Verification = Verification {unVerification :: RSA.PublicKey}
+    deriving newtype (Eq, Show)
+
 newtype Signature = Signature {unSignature :: RSA.PrivateKey}
     deriving newtype (Eq, Show)
 
@@ -145,6 +153,18 @@ deriveWriteEnabler peerid (WriteEnablerMaster master) = WriteEnabler bs
 mutableWriteEnablerTag :: B.ByteString
 mutableWriteEnablerTag = "allmydata_mutable_write_enabler_master_and_nodeid_to_write_enabler_v1"
 
+{- | Compute the verification key hash of the given verification key for
+ inclusion in an SDMF share.
+-}
+deriveVerificationHash :: Verification -> B.ByteString
+deriveVerificationHash = taggedHash 32 mutableVerificationKeyHashTag . verificationKeyToBytes
+
+{- | The tag used when hashing the verification key to the verification key
+ hash for inclusion in SDMF shares.
+-}
+mutableVerificationKeyHashTag :: B.ByteString
+mutableVerificationKeyHashTag = "allmydata_mutable_pubkey_to_fingerprint_v1"
+
 {- | Encode a public key to the Tahoe-LAFS canonical bytes representation -
  X.509 SubjectPublicKeyInfo of the ASN.1 DER serialization of an RSA
  PublicKey.
@@ -203,3 +223,7 @@ signatureKeyFromBytes bs = do
     case key of
         (PrivKeyRSA privKey) -> Right $ Signature privKey
         _ -> Left ("Expect RSA private key, found " <> show key)
+
+-- | Encrypt the signature key for inclusion in the SDMF share itself.
+encryptSignatureKey :: Write -> Signature -> B.ByteString
+encryptSignatureKey Write{unWrite} = ctrCombine unWrite nullIV . signatureKeyToBytes

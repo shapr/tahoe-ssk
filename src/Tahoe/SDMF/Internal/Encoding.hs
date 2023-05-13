@@ -1,21 +1,25 @@
 module Tahoe.SDMF.Internal.Encoding where
 
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import Crypto.Cipher.AES128 (AESKey128, BlockCipher (buildKey))
-import Crypto.Classes (getIVIO)
-import qualified Crypto.PubKey.RSA.Types as RSA
-import Crypto.Types (IV)
+import Crypto.Cipher.AES (AES128)
+import Crypto.Cipher.Types (BlockCipher (blockSize), IV, makeIV)
+import Crypto.Random (MonadRandom (getRandomBytes))
 import Data.Bifunctor (Bifunctor (bimap))
+import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Text as T
 import Data.Word (Word16, Word64, Word8)
 import Tahoe.CHK (padCiphertext, zfec, zunfec)
-import Tahoe.CHK.Crypto (taggedHash)
-import Tahoe.CHK.Encrypt (encrypt)
 import Tahoe.CHK.Merkle (MerkleTree (MerkleLeaf))
 import Tahoe.SDMF.Internal.Capability (Reader (..), Writer (..), deriveReader)
-import Tahoe.SDMF.Internal.Share (HashChain (HashChain), Share (..), signatureKeyToBytes, verificationKeyToBytes)
+import qualified Tahoe.SDMF.Internal.Keys as Keys
+import Tahoe.SDMF.Internal.Share (HashChain (HashChain), Share (..))
+
+--- XXX Not sure why I have to nail down AES128 here
+randomIV :: MonadRandom m => m (Maybe (IV AES128))
+-- XXX Secure enough random source?
+randomIV = (makeIV :: B.ByteString -> Maybe (IV AES128)) <$> getRandomBytes (blockSize (undefined :: AES128))
 
 {- | Given a pre-determined key pair and sequence number, encode some
  ciphertext into a collection of SDMF shares.
@@ -24,23 +28,22 @@ import Tahoe.SDMF.Internal.Share (HashChain (HashChain), Share (..), signatureKe
  Thus they cannot be re-used for "different" data.  Any shares created with a
  given key pair are part of the same logical data object.
 -}
-encode :: (MonadFail m, MonadIO m) => RSA.KeyPair -> Word64 -> Word16 -> Word16 -> LB.ByteString -> m ([Share], Writer)
+encode :: (MonadFail m, MonadIO m, MonadRandom m) => Keys.KeyPair -> Word64 -> Word16 -> Word16 -> LB.ByteString -> m ([Share], Writer)
 encode keypair shareSequenceNumber required total ciphertext = do
     blocks <- liftIO $ fmap LB.fromStrict <$> zfec (fromIntegral required) (fromIntegral total) (LB.toStrict $ padCiphertext required ciphertext)
 
-    -- XXX Secure enough random source?
-    iv <- liftIO (getIVIO :: IO (IV AESKey128))
+    (Just iv) <- randomIV
 
     -- XXX fromIntegral is going from Word16 to Word8, not safe
     let makeShare' =
             flip $
                 makeShare
                     shareSequenceNumber
-                    iv
+                    (Keys.SDMF_IV iv)
                     (fromIntegral required)
                     (fromIntegral total)
                     (fromIntegral $ LB.length ciphertext)
-                    (RSA.toPublicKey keypair)
+                    (Keys.toVerificationKey keypair)
 
     let makeShare'' = makeShare' <$> blocks
 
@@ -50,18 +53,15 @@ encode keypair shareSequenceNumber required total ciphertext = do
   where
     -- We can compute a capability immediately.
     cap = capabilityForKeyPair keypair
-    encryptedPrivateKey = flip encryptPrivateKey (RSA.toPrivateKey keypair) <$> (writerWriteKey <$> cap)
-
-encryptPrivateKey :: AESKey128 -> RSA.PrivateKey -> B.ByteString
-encryptPrivateKey writeKey = LB.toStrict . encrypt writeKey . LB.fromStrict . signatureKeyToBytes
+    encryptedPrivateKey = flip Keys.encryptSignatureKey (Keys.toSignatureKey keypair) <$> (writerWriteKey <$> cap)
 
 makeShare ::
     Word64 ->
-    IV AESKey128 ->
+    Keys.SDMF_IV ->
     Word8 ->
     Word8 ->
     Word64 ->
-    RSA.PublicKey ->
+    Keys.Verification ->
     B.ByteString ->
     LB.ByteString ->
     Share
@@ -84,38 +84,19 @@ decode _ s@((_, Share{shareRequiredShares, shareTotalShares, shareSegmentSize}) 
     blocks = bimap fromIntegral (LB.toStrict . shareData) <$> s
 
 -- | Compute an SDMF write capability for a given keypair.
-capabilityForKeyPair :: RSA.KeyPair -> Either T.Text Writer
+capabilityForKeyPair :: Keys.KeyPair -> Either T.Text Writer
 capabilityForKeyPair keypair =
-    Writer <$> writerWriteKey <*> writerReader
+    Writer <$> writerWriteKey <*> maybeToEither' "Failed to derive read capability" writerReader
   where
-    writerWriteKey = maybeToEither "Failed to derive write key" . deriveWriteKey . RSA.toPrivateKey $ keypair
-    verificationKeyHash = hashVerificationKey . RSA.toPublicKey $ keypair
+    writerWriteKey = maybeToEither "Failed to derive write key" . Keys.deriveWriteKey . Keys.toSignatureKey $ keypair
+    verificationKeyHash = Keys.deriveVerificationHash . Keys.toVerificationKey $ keypair
     writerReader = deriveReader <$> writerWriteKey <*> pure verificationKeyHash
 
 maybeToEither :: a -> Maybe b -> Either a b
 maybeToEither a Nothing = Left a
 maybeToEither _ (Just b) = Right b
 
-{- | The tag used when hashing the signature key to the write key for the
- creation of an SDMF capability.
--}
-mutableWriteKeyTag :: B.ByteString
-mutableWriteKeyTag = "allmydata_mutable_privkey_to_writekey_v1"
-
-writeKeyLength :: Int
-writeKeyLength = 16
-
-{- | Compute the verification key hash of the given verification key for
- inclusion in an SDMF share.
--}
-hashVerificationKey :: RSA.PublicKey -> B.ByteString
-hashVerificationKey = taggedHash verificationKeyHashLength mutableVerificationKeyHashTag . verificationKeyToBytes
-
-verificationKeyHashLength :: Int
-verificationKeyHashLength = 32
-
-{- | The tag used when hashing the verification key to the verification key
- hash for inclusion in SDMF shares.
--}
-mutableVerificationKeyHashTag :: B.ByteString
-mutableVerificationKeyHashTag = "allmydata_mutable_pubkey_to_fingerprint_v1"
+maybeToEither' :: e -> Either e (Maybe a) -> Either e a
+maybeToEither' e (Right Nothing) = Left e
+maybeToEither' _ (Right (Just r)) = Right r
+maybeToEither' _ (Left e) = Left e

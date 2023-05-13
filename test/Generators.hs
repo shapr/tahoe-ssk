@@ -47,7 +47,7 @@ shares = do
                 <*> Gen.word8 Range.exponentialBounded -- shareRequiredShares
                 <*> Gen.word64 Range.exponentialBounded -- shareSegmentSize
                 <*> Gen.word64 Range.exponentialBounded -- shareDataLength
-                <*> pure (Keys.toPublicKey keypair) -- shareVerificationKey
+                <*> pure (Keys.toVerificationKey keypair) -- shareVerificationKey
                 <*> Gen.bytes signatureLength -- shareSignature
                 <*> shareHashChains -- shareHashChain
                 <*> merkleTrees (Range.singleton 1) -- shareBlockHashTree

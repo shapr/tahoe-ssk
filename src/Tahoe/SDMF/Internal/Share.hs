@@ -2,8 +2,7 @@
 module Tahoe.SDMF.Internal.Share where
 
 import Control.Monad (unless)
-import Crypto.Cipher.AES (AES128)
-import Crypto.Cipher.Types (IV, makeIV)
+import Crypto.Cipher.Types (makeIV)
 import qualified Crypto.PubKey.RSA.Types as RSA
 import Data.ASN1.BinaryEncoding (DER (DER))
 import Data.ASN1.Encoding (ASN1Encoding (encodeASN1), decodeASN1')
@@ -17,7 +16,7 @@ import qualified Data.ByteString.Lazy as LB
 import Data.Word (Word16, Word64, Word8)
 import Data.X509 (PrivKey (PrivKeyRSA), PubKey (PubKeyRSA))
 import Tahoe.CHK.Merkle (MerkleTree, leafHashes)
-import Tahoe.SDMF.Internal.Keys (SDMF_IV (..))
+import qualified Tahoe.SDMF.Internal.Keys as Keys
 
 hashSize :: Int
 hashSize = 32
@@ -59,7 +58,7 @@ data Share = Share
     , -- | "R" (root of share hash merkle tree)
       shareRootHash :: B.ByteString
     , -- | The IV for encryption of share data.
-      shareIV :: SDMF_IV
+      shareIV :: Keys.SDMF_IV
     , -- | The total number of encoded shares (k).
       shareTotalShares :: Word8
     , -- | The number of shares required for decoding (N).
@@ -69,7 +68,7 @@ data Share = Share
     , -- | The length of the original plaintext.
       shareDataLength :: Word64
     , -- | The 2048 bit "verification" RSA key.
-      shareVerificationKey :: RSA.PublicKey
+      shareVerificationKey :: Keys.Verification
     , -- | The RSA signature of
       -- H('\x00'+shareSequenceNumber+shareRootHash+shareIV+encoding
       -- parameters) where '\x00' gives the version of this share format (0)
@@ -111,7 +110,7 @@ instance Binary Share where
         putLazyByteString shareData
         putByteString shareEncryptedPrivateKey
       where
-        verificationKeyBytes = verificationKeyToBytes shareVerificationKey
+        verificationKeyBytes = Keys.verificationKeyToBytes shareVerificationKey
         blockHashTreeBytes = B.concat . leafHashes $ shareBlockHashTree
 
         -- TODO Compute these from all the putting.
@@ -129,7 +128,7 @@ instance Binary Share where
         shareRootHash <- getByteString 32
         ivBytes <- getByteString 16
         shareIV <-
-            SDMF_IV <$> case makeIV ivBytes of
+            Keys.SDMF_IV <$> case makeIV ivBytes of
                 Nothing -> fail "Could not decode IV"
                 Just iv -> pure iv
 
@@ -145,7 +144,7 @@ instance Binary Share where
         eofOffset <- getWord64be
 
         pos <- bytesRead
-        shareVerificationKey <- isolate (fromIntegral signatureOffset - fromIntegral pos) getSubjectPublicKeyInfo
+        shareVerificationKey <- Keys.Verification <$> isolate (fromIntegral signatureOffset - fromIntegral pos) getSubjectPublicKeyInfo
 
         pos <- bytesRead
         shareSignature <- getByteString (fromIntegral hashChainOffset - fromIntegral pos)
@@ -176,13 +175,6 @@ getSubjectPublicKeyInfo = do
     let (Right asn1s) = decodeASN1' DER . LB.toStrict $ bytes
     let (Right (PubKeyRSA pubKey, [])) = fromASN1 asn1s
     pure pubKey
-
-{- | Encode a public key to the Tahoe-LAFS canonical bytes representation -
- X.509 SubjectPublicKeyInfo of the ASN.1 DER serialization of an RSA
- PublicKey.
--}
-verificationKeyToBytes :: RSA.PublicKey -> B.ByteString
-verificationKeyToBytes = LB.toStrict . encodeASN1 DER . flip toASN1 [] . PubKeyRSA
 
 {- | Encode a private key to the Tahoe-LAFS canonical bytes representation -
  X.509 SubjectPublicKeyInfo of the ASN.1 DER serialization of an RSA
