@@ -30,7 +30,7 @@ randomIV = (makeIV :: B.ByteString -> Maybe (IV AES128)) <$> getRandomBytes (blo
 -}
 encode :: (MonadFail m, MonadIO m, MonadRandom m) => Keys.KeyPair -> Word64 -> Word16 -> Word16 -> LB.ByteString -> m ([Share], Writer)
 encode keypair shareSequenceNumber required total ciphertext = do
-    blocks <- liftIO $ fmap LB.fromStrict <$> zfec (fromIntegral required) (fromIntegral total) (LB.toStrict $ padCiphertext required ciphertext)
+    blocks <- liftIO $ fmap LB.fromStrict <$> zfec (fromIntegral required) (fromIntegral total) paddedCiphertext
 
     (Just iv) <- randomIV
 
@@ -51,6 +51,7 @@ encode keypair shareSequenceNumber required total ciphertext = do
         resultE = (traverse . flip fmap) encryptedPrivateKey makeShare''
     either (fail . T.unpack) pure ((,) <$> resultE <*> cap)
   where
+    paddedCiphertext = LB.toStrict $ padCiphertext required ciphertext
     -- We can compute a capability immediately.
     cap = capabilityForKeyPair keypair
     encryptedPrivateKey = flip Keys.encryptSignatureKey (Keys.toSignatureKey keypair) <$> (writerWriteKey <$> cap)
@@ -65,21 +66,21 @@ makeShare ::
     B.ByteString ->
     LB.ByteString ->
     Share
-makeShare shareSequenceNumber shareIV shareRequiredShares shareTotalShares shareSegmentSize shareVerificationKey shareEncryptedPrivateKey shareData = Share{..}
+makeShare shareSequenceNumber shareIV shareRequiredShares shareTotalShares shareDataLength shareVerificationKey shareEncryptedPrivateKey shareData = Share{..}
   where
     shareRootHash = B.replicate 32 0
-    shareDataLength = fromIntegral $ LB.length shareData -- XXX Partial
+    shareSegmentSize = fromIntegral $ LB.length shareData -- XXX Partial
     shareSignature = B.replicate 32 0 -- XXX Actually compute sig, and is it 32 bytes?
     shareHashChain = HashChain []
     shareBlockHashTree = MerkleLeaf (B.replicate 32 0) -- XXX Real hash here, plus length check
 
 decode :: (MonadFail m, MonadIO m) => Reader -> [(Word16, Share)] -> m LB.ByteString
 decode _ [] = fail "Cannot decode with no shares"
-decode _ s@((_, Share{shareRequiredShares, shareTotalShares, shareSegmentSize}) : shares)
+decode _ s@((_, Share{shareRequiredShares, shareTotalShares, shareDataLength}) : shares)
     | length s < fromIntegral shareRequiredShares = fail $ "got " <> show (length shares) <> " shares, required " <> show shareRequiredShares
     | otherwise = do
         ciphertext <- liftIO $ zunfec (fromIntegral shareRequiredShares) (fromIntegral shareTotalShares) (take (fromIntegral shareRequiredShares) blocks)
-        pure . LB.take (fromIntegral shareSegmentSize) . LB.fromStrict $ ciphertext
+        pure . LB.take (fromIntegral shareDataLength) . LB.fromStrict $ ciphertext
   where
     blocks = bimap fromIntegral (LB.toStrict . shareData) <$> s
 

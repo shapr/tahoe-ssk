@@ -63,7 +63,8 @@ data Share = Share
       shareTotalShares :: Word8
     , -- | The number of shares required for decoding (N).
       shareRequiredShares :: Word8
-    , -- | The size of a single ciphertext segment.
+    , -- | The size of a single ciphertext segment.  This differs from
+      -- shareDataLength in that it includes padding.
       shareSegmentSize :: Word64
     , -- | The length of the original plaintext.
       shareDataLength :: Word64
