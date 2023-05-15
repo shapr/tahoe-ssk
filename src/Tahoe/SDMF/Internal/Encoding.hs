@@ -1,10 +1,11 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 {- | Implement the scheme for encoding ciphertext into SDMF shares (and
  decoding it again).
 -}
 module Tahoe.SDMF.Internal.Encoding where
 
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import Crypto.Cipher.AES (AES128)
 import Crypto.Cipher.Types (BlockCipher (blockSize), IV, makeIV)
 import Crypto.Random (MonadRandom (getRandomBytes))
 import Data.Bifunctor (Bifunctor (bimap))
@@ -18,10 +19,9 @@ import Tahoe.SDMF.Internal.Capability (Reader (..), Writer (..), deriveReader)
 import qualified Tahoe.SDMF.Internal.Keys as Keys
 import Tahoe.SDMF.Internal.Share (HashChain (HashChain), Share (..))
 
---- XXX Not sure why I have to nail down AES128 here
-randomIV :: MonadRandom m => m (Maybe (IV AES128))
+randomIV :: forall c m. (BlockCipher c, MonadRandom m) => m (Maybe (IV c))
 -- XXX Secure enough random source?
-randomIV = (makeIV :: B.ByteString -> Maybe (IV AES128)) <$> getRandomBytes (blockSize (undefined :: AES128))
+randomIV = (makeIV :: B.ByteString -> Maybe (IV c)) <$> getRandomBytes (blockSize (undefined :: c))
 
 {- | Given a pre-determined key pair and sequence number, encode some
  ciphertext into a collection of SDMF shares.
