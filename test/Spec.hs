@@ -171,7 +171,7 @@ tests =
                             readKey <- Keys.deriveReadKey writeKey
                             Keys.deriveDataKey iv readKey
                     plaintext <- forAll $ LB.fromStrict <$> Gen.bytes (Range.exponential 1 1024)
-                    tripping plaintext (Tahoe.SDMF.encrypt dataKey iv) (Just . Tahoe.SDMF.decrypt dataKey iv)
+                    tripping plaintext (Tahoe.SDMF.encrypt dataKey) (Just . Tahoe.SDMF.decrypt dataKey)
         , testCase "Recover plaintext from a known-correct slot" $ do
             s0 <- liftIO $ Binary.decode <$> (LB.readFile "test/data/3of10.0" >>= readShareFromBucket)
             s6 <- liftIO $ Binary.decode <$> (LB.readFile "test/data/3of10.6" >>= readShareFromBucket)
@@ -182,11 +182,21 @@ tests =
                 readerVerificationKeyHash = "junk"
                 reader = Tahoe.SDMF.Reader{..}
             ciphertext <- Tahoe.SDMF.decode reader [(0, s0), (6, s6), (9, s9)]
-            let (Just dataKey) = Keys.deriveDataKey (Tahoe.SDMF.shareIV s0) readerReadKey
-                plaintext = Tahoe.SDMF.decrypt dataKey (Tahoe.SDMF.shareIV s0) ciphertext
+            let (Right expectedCiphertext) = LB.fromStrict <$> decodeBase32Unpadded "6gutkha6qd4g3lxahth2dw2wjekadwoxvmazrnfq5u5j6a7quu5qy6nz3dvosx2gisdjshdtd5xphqvqjco5pq73qi"
+                (Right (Just expectedIV)) = fmap (fmap Keys.SDMF_IV . makeIV) . decodeBase32Unpadded $ "xkczackg4djsvtx5brgy4z3pse"
+                (Right expectedReadKey) = Binary.decode . LB.fromStrict <$> decodeBase32Unpadded "g4fimjxgdpwrvpfguyz5a6hvz4"
+                (Right expectedDataKey) = Binary.decode . LB.fromStrict <$> decodeBase32Unpadded "crblibtnjacos5xwjpxb2d5hla"
+                expectedPlaintext = "abcdefghijklmnopqrstuvwxyzZYXWVUTSRQPONMLKJIJHGRFCBA1357"
 
-            print plaintext
-            pure ()
+                (Just dataKey) = Keys.deriveDataKey (Tahoe.SDMF.shareIV s0) readerReadKey
+                recoveredPlaintext = Tahoe.SDMF.decrypt dataKey ciphertext
+
+            assertEqual "read key: expected /= derived" expectedReadKey readerReadKey
+            assertEqual "data key: expected /= derived" expectedDataKey dataKey
+            assertEqual "iv: expected /= loaded" expectedIV (Tahoe.SDMF.shareIV s0)
+            assertEqual "ciphertext: expected /= decoded" expectedCiphertext ciphertext
+
+            assertEqual "expected /= recovered" expectedPlaintext recoveredPlaintext
         ]
 
 readShareFromBucket :: MonadFail m => LB.ByteString -> m LB.ByteString

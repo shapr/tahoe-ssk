@@ -8,7 +8,7 @@ import Prelude hiding (Read)
 
 import Control.Monad (when)
 import Crypto.Cipher.AES (AES128)
-import Crypto.Cipher.Types (BlockCipher (ctrCombine), Cipher (cipherInit, cipherKeySize), IV, KeySizeSpecifier (KeySizeFixed), makeIV, nullIV)
+import Crypto.Cipher.Types (BlockCipher (ctrCombine), Cipher (cipherInit, cipherKeySize), IV, KeySizeSpecifier (KeySizeFixed), nullIV)
 import Crypto.Error (CryptoFailable (CryptoPassed), maybeCryptoError)
 import qualified Crypto.PubKey.RSA as RSA
 import Crypto.Random (MonadRandom)
@@ -49,7 +49,7 @@ data Write = Write {unWrite :: AES128, writeKeyBytes :: ByteArray.ScrubbedBytes}
 instance Binary Write where
     put = putByteString . ByteArray.convert . writeKeyBytes
     get = do
-        writeKeyBytes <- ByteArray.convert <$> getByteString 16
+        writeKeyBytes <- ByteArray.convert <$> getByteString keyLength
         let (CryptoPassed unWrite) = cipherInit writeKeyBytes
         pure Write{..}
 
@@ -58,8 +58,17 @@ instance Show Write where
 
 data Read = Read {unRead :: AES128, readKeyBytes :: ByteArray.ScrubbedBytes}
 
+instance Binary Read where
+    put = putByteString . ByteArray.convert . readKeyBytes
+    get = do
+        readKeyBytes <- ByteArray.convert <$> getByteString keyLength
+        let (CryptoPassed unRead) = cipherInit readKeyBytes
+        pure Read{..}
+
 instance Show Read where
     show (Read _ bs) = T.unpack $ T.concat ["<ReadKey ", encodeBase32Unpadded (ByteArray.convert bs), ">"]
+instance Eq Read where
+    (Read _ left) == (Read _ right) = left == right
 
 newtype StorageIndex = StorageIndex {unStorageIndex :: B.ByteString}
 
@@ -68,6 +77,16 @@ newtype WriteEnablerMaster = WriteEnablerMaster ByteArray.ScrubbedBytes
 newtype WriteEnabler = WriteEnabler ByteArray.ScrubbedBytes
 
 data Data = Data {unData :: AES128, dataKeyBytes :: ByteArray.ScrubbedBytes}
+instance Show Data where
+    show (Data _ bs) = T.unpack $ T.concat ["<DataKey ", encodeBase32Unpadded (ByteArray.convert bs), ">"]
+instance Eq Data where
+    (Data _ left) == (Data _ right) = left == right
+instance Binary Data where
+    put = putByteString . ByteArray.convert . dataKeyBytes
+    get = do
+        dataKeyBytes <- ByteArray.convert <$> getByteString keyLength
+        let (CryptoPassed unData) = cipherInit dataKeyBytes
+        pure Data{..}
 
 newtype SDMF_IV = SDMF_IV (IV AES128)
     deriving (Eq)
