@@ -1,3 +1,6 @@
+{- | Implement the scheme for encoding ciphertext into SDMF shares (and
+ decoding it again).
+-}
 module Tahoe.SDMF.Internal.Encoding where
 
 import Control.Monad.IO.Class (MonadIO (liftIO))
@@ -5,7 +8,6 @@ import Crypto.Cipher.AES (AES128)
 import Crypto.Cipher.Types (BlockCipher (blockSize), IV, makeIV)
 import Crypto.Random (MonadRandom (getRandomBytes))
 import Data.Bifunctor (Bifunctor (bimap))
-import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.Text as T
@@ -74,6 +76,11 @@ makeShare shareSequenceNumber shareIV shareRequiredShares shareTotalShares share
     shareHashChain = HashChain []
     shareBlockHashTree = MerkleLeaf (B.replicate 32 0) -- XXX Real hash here, plus length check
 
+{- | Decode some SDMF shares to recover the original ciphertext.
+
+ TODO: Use the read capability to verify the shares were constructed with
+ information from the matching write capability.
+-}
 decode :: (MonadFail m, MonadIO m) => Reader -> [(Word16, Share)] -> m LB.ByteString
 decode _ [] = fail "Cannot decode with no shares"
 decode _ s@((_, Share{shareRequiredShares, shareTotalShares, shareDataLength}) : shares)
