@@ -24,7 +24,7 @@ hashSize = 32
 newtype HashChain = HashChain
     { hashChain :: [(Word16, B.ByteString)]
     }
-    deriving newtype (Eq, Show)
+    deriving newtype (Eq, Show, Semigroup)
 
 instance Binary HashChain where
     put (HashChain []) = mempty
@@ -40,8 +40,7 @@ instance Binary HashChain where
             else do
                 n <- getWord16be
                 h <- getByteString hashSize
-                (HashChain c) <- get
-                pure $ HashChain ((n, h) : c)
+                (HashChain [(n, h)] <>) <$> get
 
 {- | Structured representation of a single version SDMF share.
 
