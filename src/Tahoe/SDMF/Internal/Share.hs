@@ -144,23 +144,18 @@ instance Binary Share where
         encryptedPrivateKeyOffset <- getWord64be
         eofOffset <- getWord64be
 
-        pos <- bytesRead
-        shareVerificationKey <- Keys.Verification <$> isolate (fromIntegral signatureOffset - fromIntegral pos) getSubjectPublicKeyInfo
+        -- This offset is not the encoded share but it's defined as being
+        -- right where we've read to.  Give it a name that follows the
+        -- pattern.
+        shareVerificationOffset <- bytesRead
 
-        pos <- bytesRead
-        shareSignature <- getByteString (fromIntegral hashChainOffset - fromIntegral pos)
-
-        pos <- bytesRead
-        shareHashChain <- isolate (fromIntegral blockHashTreeOffset - fromIntegral pos) get
-
-        pos <- bytesRead
-        shareBlockHashTree <- isolate (fromIntegral shareDataOffset - fromIntegral pos) get
-
-        pos <- bytesRead
-        shareData <- getLazyByteString (fromIntegral encryptedPrivateKeyOffset - fromIntegral pos)
-
-        pos <- bytesRead
-        shareEncryptedPrivateKey <- getByteString (fromIntegral eofOffset - fromIntegral pos)
+        -- Read in the values between all those offsets.
+        shareVerificationKey <- Keys.Verification <$> isolate (fromIntegral signatureOffset - fromIntegral shareVerificationOffset) getSubjectPublicKeyInfo
+        shareSignature <- getByteString (fromIntegral hashChainOffset - fromIntegral signatureOffset)
+        shareHashChain <- isolate (fromIntegral blockHashTreeOffset - fromIntegral hashChainOffset) get
+        shareBlockHashTree <- isolate (fromIntegral shareDataOffset - fromIntegral blockHashTreeOffset) get
+        shareData <- getLazyByteString (fromIntegral encryptedPrivateKeyOffset - fromIntegral shareDataOffset)
+        shareEncryptedPrivateKey <- getByteString (fromIntegral eofOffset - fromIntegral encryptedPrivateKeyOffset)
 
         empty <- isEmpty
         unless empty (fail "Expected end of input but there are more bytes")
