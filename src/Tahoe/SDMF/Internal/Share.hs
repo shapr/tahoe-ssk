@@ -128,10 +128,9 @@ instance Binary Share where
         shareSequenceNumber <- getWord64be
         shareRootHash <- getByteString 32
         ivBytes <- getByteString 16
-        shareIV <-
-            Keys.SDMF_IV <$> case makeIV ivBytes of
-                Nothing -> fail "Could not decode IV"
-                Just iv -> pure iv
+        shareIV <- case makeIV ivBytes of
+            Nothing -> fail "Could not decode IV"
+            Just iv -> pure (Keys.SDMF_IV iv)
 
         shareRequiredShares <- getWord8
         shareTotalShares <- getWord8
