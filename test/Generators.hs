@@ -100,6 +100,6 @@ shareHashChains = HashChain <$> Gen.list range element
 -- | Build a valid pair of (required, total) encoding parameters.
 encodingParameters :: MonadGen m => m (Word16, Word16)
 encodingParameters = do
-    required <- Gen.integral (Range.exponential 1 255)
-    total <- Gen.integral (Range.exponential (required + 1) 256)
+    required <- Gen.integral (Range.exponential 1 254)
+    total <- Gen.integral (Range.exponential (required + 1) 255)
     pure (required, total)
