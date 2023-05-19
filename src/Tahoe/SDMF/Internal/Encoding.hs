@@ -29,7 +29,7 @@ randomIV = (makeIV :: B.ByteString -> Maybe (IV c)) <$> getRandomBytes (blockSiz
 {- | Given a pre-determined key pair and sequence number, encode some
  ciphertext into a collection of SDMF shares.
 
- A key pair *unique identifies* a "slot" (the storage location for the shares).
+ A key pair *uniquely identifies* a "slot" (the storage location for the shares).
  Thus they cannot be re-used for "different" data.  Any shares created with a
  given key pair are part of the same logical data object.
 -}
