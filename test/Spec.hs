@@ -224,13 +224,6 @@ knownCorrectRoundTrip n = do
     -- predictable size.
     bucket <- LB.readFile ("test/data/3of10." <> show n)
     shareData <- readShareFromBucket bucket
-    -- let withoutPrefix = LB.drop (32 + 20 + 32 + 8 + 8 + 368) bucket
-    --     dataSize = LB.length withoutPrefix - 4
-    --     shareData = LB.take dataSize withoutPrefix
-    --     suffix = LB.drop dataSize withoutPrefix
-
-    -- -- Our assumption about the data we're working on...
-    -- assertEqual "Cannot account for extra leases" suffix "\0\0\0\0"
 
     let decoded = decode' shareData
     let encoded = (Binary.encode :: Tahoe.SDMF.Share -> LB.ByteString) <$> decoded
