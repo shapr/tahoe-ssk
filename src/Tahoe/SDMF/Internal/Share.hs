@@ -13,6 +13,7 @@ import Data.Binary.Put (putByteString, putLazyByteString, putWord16be, putWord32
 import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
+import Data.Int (Int64)
 import Data.Word (Word16, Word32, Word64, Word8)
 import Data.X509 (PrivKey (PrivKeyRSA), PubKey (PubKeyRSA))
 import Tahoe.CHK.Merkle (MerkleTree, leafHashes)
@@ -183,7 +184,10 @@ instance Binary Share where
         shareSignature <- getByteString (from $ hashChainOffset - signatureOffset)
         shareHashChain <- isolate (from $ blockHashTreeOffset - hashChainOffset) get
         shareBlockHashTree <- isolate (from $ shareDataOffset - blockHashTreeOffset) get
-        shareData <- getLazyByteString (fromIntegral encryptedPrivateKeyOffset - fromIntegral shareDataOffset)
+
+        blockLength <- tryInto @Int64 "Binary.get Share could not represent share block length" (encryptedPrivateKeyOffset - into @Word64 shareDataOffset)
+        shareData <- getLazyByteString blockLength
+
         keyBytesLength <- tryInto @Int "Binary.get Share cannot represent private key length" (eofOffset - encryptedPrivateKeyOffset)
         shareEncryptedPrivateKey <- getByteString keyBytesLength
 
