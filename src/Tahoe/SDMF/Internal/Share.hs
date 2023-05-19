@@ -2,8 +2,7 @@
 module Tahoe.SDMF.Internal.Share where
 
 import Control.Monad (unless)
-import Crypto.Cipher.AES (AES128)
-import Crypto.Cipher.Types (IV, makeIV)
+import Crypto.Cipher.Types (makeIV)
 import qualified Crypto.PubKey.RSA.Types as RSA
 import Data.ASN1.BinaryEncoding (DER (DER))
 import Data.ASN1.Encoding (ASN1Encoding (encodeASN1), decodeASN1')
@@ -14,10 +13,12 @@ import Data.Binary.Put (putByteString, putLazyByteString, putWord16be, putWord32
 import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
-import Data.Word (Word16, Word64, Word8)
-import Data.X509 (PubKey (PubKeyRSA))
+import Data.Int (Int64)
+import Data.Word (Word16, Word32, Word64, Word8)
+import Data.X509 (PrivKey (PrivKeyRSA), PubKey (PubKeyRSA))
 import Tahoe.CHK.Merkle (MerkleTree, leafHashes)
-import Tahoe.SDMF.Internal.Keys (SDMF_IV (..))
+import Tahoe.SDMF.Internal.Converting (From (from), into, tryInto)
+import qualified Tahoe.SDMF.Internal.Keys as Keys
 
 hashSize :: Int
 hashSize = 32
@@ -25,7 +26,7 @@ hashSize = 32
 newtype HashChain = HashChain
     { hashChain :: [(Word16, B.ByteString)]
     }
-    deriving newtype (Eq, Show)
+    deriving newtype (Eq, Show, Semigroup)
 
 instance Binary HashChain where
     put (HashChain []) = mempty
@@ -41,8 +42,7 @@ instance Binary HashChain where
             else do
                 n <- getWord16be
                 h <- getByteString hashSize
-                (HashChain c) <- get
-                pure $ HashChain ((n, h) : c)
+                (HashChain [(n, h)] <>) <$> get
 
 {- | Structured representation of a single version SDMF share.
 
@@ -59,17 +59,18 @@ data Share = Share
     , -- | "R" (root of share hash merkle tree)
       shareRootHash :: B.ByteString
     , -- | The IV for encryption of share data.
-      shareIV :: SDMF_IV
+      shareIV :: Keys.SDMF_IV
     , -- | The total number of encoded shares (k).
       shareTotalShares :: Word8
     , -- | The number of shares required for decoding (N).
       shareRequiredShares :: Word8
-    , -- | The size of a single ciphertext segment.
+    , -- | The size of a single ciphertext segment.  This differs from
+      -- shareDataLength in that it includes padding.
       shareSegmentSize :: Word64
     , -- | The length of the original plaintext.
       shareDataLength :: Word64
     , -- | The 2048 bit "verification" RSA key.
-      shareVerificationKey :: RSA.PublicKey
+      shareVerificationKey :: Keys.Verification
     , -- | The RSA signature of
       -- H('\x00'+shareSequenceNumber+shareRootHash+shareIV+encoding
       -- parameters) where '\x00' gives the version of this share format (0)
@@ -94,8 +95,8 @@ instance Binary Share where
         putWord64be shareSequenceNumber
         putByteString shareRootHash
         putByteString . ByteArray.convert $ shareIV
-        putWord8 shareTotalShares
         putWord8 shareRequiredShares
+        putWord8 shareTotalShares
         putWord64be shareSegmentSize
         putWord64be shareDataLength
         putWord32be signatureOffset
@@ -111,16 +112,46 @@ instance Binary Share where
         putLazyByteString shareData
         putByteString shareEncryptedPrivateKey
       where
-        verificationKeyBytes = LB.toStrict . encodeASN1 DER . flip toASN1 [] . PubKeyRSA $ shareVerificationKey
+        verificationKeyBytes = Keys.verificationKeyToBytes shareVerificationKey
         blockHashTreeBytes = B.concat . leafHashes $ shareBlockHashTree
 
-        -- TODO Compute these from all the putting.
-        signatureOffset = fromIntegral $ 1 + 8 + hashSize + 16 + 18 + 32 + B.length verificationKeyBytes
-        hashChainOffset = signatureOffset + fromIntegral (B.length shareSignature)
-        blockHashTreeOffset = hashChainOffset + fromIntegral (length (hashChain shareHashChain) * (hashSize + 2))
-        shareDataOffset = blockHashTreeOffset + fromIntegral (B.length blockHashTreeBytes)
-        encryptedPrivateKeyOffset = fromIntegral shareDataOffset + fromIntegral (LB.length shareData)
-        eofOffset = encryptedPrivateKeyOffset + fromIntegral (B.length shareEncryptedPrivateKey)
+        -- Some conversions could fail because we can't be completely sure of
+        -- the size of the data we're working with.  Put has no good failure
+        -- mechanism though.  Try to provide the best failure behavior we can
+        -- here.
+        signatureOffset =
+            case tryInto @Word32 "" $ 1 + 8 + hashSize + 16 + 18 + 32 + B.length verificationKeyBytes of
+                Nothing -> error "Binary.put Share could not represent signature offset"
+                Just x -> x
+
+        hashChainOffset =
+            signatureOffset
+                + case tryInto @Word32 "" (B.length shareSignature) of
+                    Nothing -> error "Binary.put Share could not represent hash chain offset"
+                    Just x -> x
+        blockHashTreeOffset =
+            hashChainOffset
+                + case tryInto @Word32 "" (length (hashChain shareHashChain) * (hashSize + 2)) of
+                    Nothing -> error "Binary.put Share could not represent block hash tree offset"
+                    Just x -> x
+        shareDataOffset =
+            blockHashTreeOffset
+                + case tryInto @Word32 "" (B.length blockHashTreeBytes) of
+                    Nothing -> error "Binary.put Share could not represent share data offset"
+                    Just x -> x
+
+        -- Then there are a couple 64 bit offsets, represented as Word64s, for
+        -- positions that follow the share data.
+        encryptedPrivateKeyOffset =
+            into @Word64 shareDataOffset
+                + case tryInto @Word64 "" (LB.length shareData) of
+                    Nothing -> error "Binary.put Share could not represent share data length"
+                    Just x -> x
+        eofOffset =
+            encryptedPrivateKeyOffset
+                + case tryInto @Word64 "" (B.length shareEncryptedPrivateKey) of
+                    Nothing -> error "Binary.put Share could not represent encrypted private key length"
+                    Just x -> x
 
     get = do
         version <- getWord8
@@ -128,13 +159,12 @@ instance Binary Share where
         shareSequenceNumber <- getWord64be
         shareRootHash <- getByteString 32
         ivBytes <- getByteString 16
-        shareIV <-
-            SDMF_IV <$> case makeIV ivBytes of
-                Nothing -> fail "Could not decode IV"
-                Just iv -> pure iv
+        shareIV <- case makeIV ivBytes of
+            Nothing -> fail "Could not decode IV"
+            Just iv -> pure (Keys.SDMF_IV iv)
 
-        shareTotalShares <- getWord8
         shareRequiredShares <- getWord8
+        shareTotalShares <- getWord8
         shareSegmentSize <- getWord64be
         shareDataLength <- getWord64be
         signatureOffset <- getWord32be
@@ -144,23 +174,22 @@ instance Binary Share where
         encryptedPrivateKeyOffset <- getWord64be
         eofOffset <- getWord64be
 
-        pos <- bytesRead
-        shareVerificationKey <- isolate (fromIntegral signatureOffset - fromIntegral pos) getSubjectPublicKeyInfo
+        -- This offset is not the encoded share but it's defined as being
+        -- right where we've read to.  Give it a name that follows the
+        -- pattern.
+        shareVerificationOffset <- bytesRead
 
-        pos <- bytesRead
-        shareSignature <- getByteString (fromIntegral hashChainOffset - fromIntegral pos)
+        -- Read in the values between all those offsets.
+        shareVerificationKey <- Keys.Verification <$> isolate (from signatureOffset - from shareVerificationOffset) getSubjectPublicKeyInfo
+        shareSignature <- getByteString (from $ hashChainOffset - signatureOffset)
+        shareHashChain <- isolate (from $ blockHashTreeOffset - hashChainOffset) get
+        shareBlockHashTree <- isolate (from $ shareDataOffset - blockHashTreeOffset) get
 
-        pos <- bytesRead
-        shareHashChain <- isolate (fromIntegral blockHashTreeOffset - fromIntegral pos) get
+        blockLength <- tryInto @Int64 "Binary.get Share could not represent share block length" (encryptedPrivateKeyOffset - into @Word64 shareDataOffset)
+        shareData <- getLazyByteString blockLength
 
-        pos <- bytesRead
-        shareBlockHashTree <- isolate (fromIntegral shareDataOffset - fromIntegral pos) get
-
-        pos <- bytesRead
-        shareData <- getLazyByteString (fromIntegral encryptedPrivateKeyOffset - fromIntegral pos)
-
-        pos <- bytesRead
-        shareEncryptedPrivateKey <- getByteString (fromIntegral eofOffset - fromIntegral pos)
+        keyBytesLength <- tryInto @Int "Binary.get Share cannot represent private key length" (eofOffset - encryptedPrivateKeyOffset)
+        shareEncryptedPrivateKey <- getByteString keyBytesLength
 
         empty <- isEmpty
         unless empty (fail "Expected end of input but there are more bytes")
@@ -172,7 +201,14 @@ instance Binary Share where
 -}
 getSubjectPublicKeyInfo :: Get RSA.PublicKey
 getSubjectPublicKeyInfo = do
-    verificationKeyBytes <- getRemainingLazyByteString
-    let (Right asn1s) = decodeASN1' DER . LB.toStrict $ verificationKeyBytes
+    bytes <- getRemainingLazyByteString
+    let (Right asn1s) = decodeASN1' DER . LB.toStrict $ bytes
     let (Right (PubKeyRSA pubKey, [])) = fromASN1 asn1s
     pure pubKey
+
+{- | Encode a private key to the Tahoe-LAFS canonical bytes representation -
+ X.509 SubjectPublicKeyInfo of the ASN.1 DER serialization of an RSA
+ PublicKey.
+-}
+signatureKeyToBytes :: RSA.PrivateKey -> B.ByteString
+signatureKeyToBytes = LB.toStrict . encodeASN1 DER . flip toASN1 [] . PrivKeyRSA

@@ -4,6 +4,8 @@ packages: .
           -- soon.
           https://whetstone.private.storage/privatestorage/tahoe-chk/-/archive/0.1.0.1/tahoe-chk-0.1.0.1.tar.gz
 
+tests: True
+
 package zlib
         -- Turn on discovery of the underlying zlib using pkg-config.  This
         -- fixes build failures when the underlying zlib is not in the

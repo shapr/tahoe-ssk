@@ -8,14 +8,17 @@ import Prelude hiding (Read)
 
 import Control.Monad (when)
 import Crypto.Cipher.AES (AES128)
-import Crypto.Cipher.Types (Cipher (cipherInit, cipherKeySize), IV, KeySizeSpecifier (KeySizeFixed))
-import Crypto.Error (maybeCryptoError)
+import Crypto.Cipher.Types (BlockCipher (ctrCombine), Cipher (cipherInit, cipherKeySize), IV, KeySizeSpecifier (KeySizeFixed), nullIV)
+import Crypto.Error (CryptoFailable (CryptoPassed), maybeCryptoError)
 import qualified Crypto.PubKey.RSA as RSA
 import Crypto.Random (MonadRandom)
 import Data.ASN1.BinaryEncoding (DER (DER))
 import Data.ASN1.Encoding (ASN1Encoding (encodeASN1), decodeASN1')
 import Data.ASN1.Types (ASN1 (End, IntVal, Null, OID, OctetString, Start), ASN1ConstructionType (Sequence), ASN1Object (fromASN1, toASN1))
 import Data.Bifunctor (Bifunctor (first))
+import Data.Binary (Binary (get, put))
+import Data.Binary.Get (getByteString)
+import Data.Binary.Put (putByteString)
 import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString as B
 import Data.ByteString.Base32 (encodeBase32Unpadded)
@@ -29,19 +32,43 @@ newtype KeyPair = KeyPair {toPrivateKey :: RSA.PrivateKey} deriving newtype (Sho
 toPublicKey :: KeyPair -> RSA.PublicKey
 toPublicKey = RSA.private_pub . toPrivateKey
 
+toSignatureKey :: KeyPair -> Signature
+toSignatureKey = Signature . toPrivateKey
+
+toVerificationKey :: KeyPair -> Verification
+toVerificationKey = Verification . toPublicKey
+
 newtype Verification = Verification {unVerification :: RSA.PublicKey}
+    deriving newtype (Eq, Show)
+
 newtype Signature = Signature {unSignature :: RSA.PrivateKey}
     deriving newtype (Eq, Show)
 
 data Write = Write {unWrite :: AES128, writeKeyBytes :: ByteArray.ScrubbedBytes}
+
+instance Binary Write where
+    put = putByteString . ByteArray.convert . writeKeyBytes
+    get = do
+        writeKeyBytes <- ByteArray.convert <$> getByteString keyLength
+        let (CryptoPassed unWrite) = cipherInit writeKeyBytes
+        pure Write{..}
 
 instance Show Write where
     show (Write _ bs) = T.unpack $ T.concat ["<WriteKey ", encodeBase32Unpadded (ByteArray.convert bs), ">"]
 
 data Read = Read {unRead :: AES128, readKeyBytes :: ByteArray.ScrubbedBytes}
 
+instance Binary Read where
+    put = putByteString . ByteArray.convert . readKeyBytes
+    get = do
+        readKeyBytes <- ByteArray.convert <$> getByteString keyLength
+        let (CryptoPassed unRead) = cipherInit readKeyBytes
+        pure Read{..}
+
 instance Show Read where
     show (Read _ bs) = T.unpack $ T.concat ["<ReadKey ", encodeBase32Unpadded (ByteArray.convert bs), ">"]
+instance Eq Read where
+    (Read _ left) == (Read _ right) = left == right
 
 newtype StorageIndex = StorageIndex {unStorageIndex :: B.ByteString}
 
@@ -50,6 +77,16 @@ newtype WriteEnablerMaster = WriteEnablerMaster ByteArray.ScrubbedBytes
 newtype WriteEnabler = WriteEnabler ByteArray.ScrubbedBytes
 
 data Data = Data {unData :: AES128, dataKeyBytes :: ByteArray.ScrubbedBytes}
+instance Show Data where
+    show (Data _ bs) = T.unpack $ T.concat ["<DataKey ", encodeBase32Unpadded (ByteArray.convert bs), ">"]
+instance Eq Data where
+    (Data _ left) == (Data _ right) = left == right
+instance Binary Data where
+    put = putByteString . ByteArray.convert . dataKeyBytes
+    get = do
+        dataKeyBytes <- ByteArray.convert <$> getByteString keyLength
+        let (CryptoPassed unData) = cipherInit dataKeyBytes
+        pure Data{..}
 
 newtype SDMF_IV = SDMF_IV (IV AES128)
     deriving (Eq)
@@ -145,6 +182,18 @@ deriveWriteEnabler peerid (WriteEnablerMaster master) = WriteEnabler bs
 mutableWriteEnablerTag :: B.ByteString
 mutableWriteEnablerTag = "allmydata_mutable_write_enabler_master_and_nodeid_to_write_enabler_v1"
 
+{- | Compute the verification key hash of the given verification key for
+ inclusion in an SDMF share.
+-}
+deriveVerificationHash :: Verification -> B.ByteString
+deriveVerificationHash = taggedHash 32 mutableVerificationKeyHashTag . verificationKeyToBytes
+
+{- | The tag used when hashing the verification key to the verification key
+ hash for inclusion in SDMF shares.
+-}
+mutableVerificationKeyHashTag :: B.ByteString
+mutableVerificationKeyHashTag = "allmydata_mutable_pubkey_to_fingerprint_v1"
+
 {- | Encode a public key to the Tahoe-LAFS canonical bytes representation -
  X.509 SubjectPublicKeyInfo of the ASN.1 DER serialization of an RSA
  PublicKey.
@@ -203,3 +252,7 @@ signatureKeyFromBytes bs = do
     case key of
         (PrivKeyRSA privKey) -> Right $ Signature privKey
         _ -> Left ("Expect RSA private key, found " <> show key)
+
+-- | Encrypt the signature key for inclusion in the SDMF share itself.
+encryptSignatureKey :: Write -> Signature -> B.ByteString
+encryptSignatureKey Write{unWrite} = ctrCombine unWrite nullIV . signatureKeyToBytes

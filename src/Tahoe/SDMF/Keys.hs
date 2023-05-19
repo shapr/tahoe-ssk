@@ -16,5 +16,6 @@ import Tahoe.SDMF.Internal.Keys (
     deriveWriteEnabler,
     deriveWriteEnablerMaster,
     deriveWriteKey,
-    toPublicKey,
+    toSignatureKey,
+    toVerificationKey,
  )

@@ -9,6 +9,7 @@ import Data.ASN1.Types (ASN1Object (fromASN1, toASN1))
 import Data.Bifunctor (Bifunctor (first))
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
+import Data.Word (Word16)
 import Data.X509 (PrivKey (PrivKeyRSA))
 import GHC.IO.Unsafe (unsafePerformIO)
 import Hedgehog (MonadGen)
@@ -46,7 +47,7 @@ shares = do
                 <*> Gen.word8 Range.exponentialBounded -- shareRequiredShares
                 <*> Gen.word64 Range.exponentialBounded -- shareSegmentSize
                 <*> Gen.word64 Range.exponentialBounded -- shareDataLength
-                <*> pure (Keys.toPublicKey keypair) -- shareVerificationKey
+                <*> pure (Keys.toVerificationKey keypair) -- shareVerificationKey
                 <*> Gen.bytes signatureLength -- shareSignature
                 <*> shareHashChains -- shareHashChain
                 <*> merkleTrees (Range.singleton 1) -- shareBlockHashTree
@@ -95,3 +96,10 @@ shareHashChains = HashChain <$> Gen.list range element
   where
     range = Range.exponential 1 5
     element = (,) <$> Gen.integral (Range.exponential 0 255) <*> Gen.bytes (Range.singleton 32)
+
+-- | Build a valid pair of (required, total) encoding parameters.
+encodingParameters :: MonadGen m => m (Word16, Word16)
+encodingParameters = do
+    required <- Gen.integral (Range.exponential 1 254)
+    total <- Gen.integral (Range.exponential (required + 1) 255)
+    pure (required, total)
