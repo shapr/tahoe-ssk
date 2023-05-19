@@ -16,7 +16,7 @@ import qualified Data.ByteString.Lazy as LB
 import Data.Word (Word16, Word32, Word64, Word8)
 import Data.X509 (PrivKey (PrivKeyRSA), PubKey (PubKeyRSA))
 import Tahoe.CHK.Merkle (MerkleTree, leafHashes)
-import Tahoe.SDMF.Internal.Converting (From (from), TryFrom (tryFrom), into, tryInto)
+import Tahoe.SDMF.Internal.Converting (From (from), into, tryInto)
 import qualified Tahoe.SDMF.Internal.Keys as Keys
 
 hashSize :: Int
