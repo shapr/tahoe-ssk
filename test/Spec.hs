@@ -1,6 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE NamedFieldPuns #-}
-
 module Spec where
 
 import Hedgehog (
@@ -14,6 +11,7 @@ import Hedgehog (
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Crypto.Cipher.Types (makeIV)
+import Crypto.Hash (digestFromByteString)
 import Data.ASN1.BinaryEncoding (DER (DER))
 import Data.ASN1.Encoding (decodeASN1')
 import qualified Data.Binary as Binary
@@ -22,17 +20,20 @@ import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString as B
 import Data.ByteString.Base32 (decodeBase32Unpadded, encodeBase32Unpadded)
 import qualified Data.ByteString.Lazy as LB
+import Data.Either (rights)
 import qualified Data.Text as T
 import Generators (encodingParameters, genRSAKeys, shareHashChains, shares)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import System.IO (hSetEncoding, stderr, stdout, utf8)
 import qualified Tahoe.SDMF
+import Tahoe.SDMF.Internal.Capability (deriveVerifier)
 import Tahoe.SDMF.Internal.Keys (signatureKeyFromBytes, signatureKeyToBytes)
 import qualified Tahoe.SDMF.Keys as Keys
 import Test.Tasty (TestTree, defaultMain, testGroup)
 import Test.Tasty.HUnit (assertEqual, testCase)
 import Test.Tasty.Hedgehog (testProperty)
+import Text.Megaparsec (parse)
 
 -- The test suite compares against some hard-coded opaque strings.  These
 -- expected values were determined using the expected_values.py program in
@@ -142,6 +143,14 @@ tests =
                             "write enabler: expected /= derived"
                             expectedWriteEnabler
                             (fmtKey derivedWriteEnabler)
+        , testCase "known-correct SDMF capabilities can be parsed" $ do
+            let validWrite = "URI:SSK:vbopclzrkxces6okoqfarapmou:xlwog3jxbgsuaddh3bsofwmyhncv7fanmo7ujhqiy26usx2v2neq"
+                validRead = "URI:SSK-RO:ro7pnpq6duaduuolookwbv5lqy:xlwog3jxbgsuaddh3bsofwmyhncv7fanmo7ujhqiy26usx2v2neq"
+                validVerify = "URI:SSK-Verifier:gz4s2zkkqy2geblvv77atyoppi:xlwog3jxbgsuaddh3bsofwmyhncv7fanmo7ujhqiy26usx2v2neq"
+
+                parsed = rights $ parse Tahoe.SDMF.pCapability "<test>" <$> [validWrite, validVerify, validRead]
+
+            assertEqual "parsing failed" 3 (length parsed)
         , testProperty "Share round-trips through bytes" $
             property $ do
                 share <- forAll shares
@@ -179,7 +188,7 @@ tests =
 
             let (Right writeKey) = Binary.decode . LB.fromStrict <$> decodeBase32Unpadded "vdv6pcqkblsguvkagrblr3gopu"
                 (Just readerReadKey) = Keys.deriveReadKey writeKey
-                readerVerificationKeyHash = "junk"
+                (Just readerVerifier) = deriveVerifier readerReadKey <$> digestFromByteString ("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" :: B.ByteString)
                 reader = Tahoe.SDMF.Reader{..}
             ciphertext <- Tahoe.SDMF.decode reader [(0, s0), (6, s6), (9, s9)]
             let (Right expectedCiphertext) = LB.fromStrict <$> decodeBase32Unpadded "6gutkha6qd4g3lxahth2dw2wjekadwoxvmazrnfq5u5j6a7quu5qy6nz3dvosx2gisdjshdtd5xphqvqjco5pq73qi"

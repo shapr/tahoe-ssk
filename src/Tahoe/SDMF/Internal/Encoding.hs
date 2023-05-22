@@ -8,6 +8,7 @@ module Tahoe.SDMF.Internal.Encoding where
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Crypto.Cipher.Types (BlockCipher (blockSize), IV, makeIV)
+import Crypto.Hash (digestFromByteString)
 import Crypto.Random (MonadRandom (getRandomBytes))
 import Data.Bifunctor (Bifunctor (bimap))
 import qualified Data.ByteString as B
@@ -129,8 +130,8 @@ capabilityForKeyPair keypair =
     Writer <$> writerWriteKey <*> maybeToEither' "Failed to derive read capability" writerReader
   where
     writerWriteKey = maybeToEither "Failed to derive write key" . Keys.deriveWriteKey . Keys.toSignatureKey $ keypair
-    verificationKeyHash = Keys.deriveVerificationHash . Keys.toVerificationKey $ keypair
-    writerReader = deriveReader <$> writerWriteKey <*> pure verificationKeyHash
+    verificationKeyHash = digestFromByteString . Keys.deriveVerificationHash . Keys.toVerificationKey $ keypair
+    writerReader = deriveReader <$> writerWriteKey <*> maybeToEither "Failed to interpret verification hash" verificationKeyHash
 
 maybeToEither :: a -> Maybe b -> Either a b
 maybeToEither a Nothing = Left a
