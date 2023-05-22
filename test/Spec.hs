@@ -148,9 +148,13 @@ tests =
                 validRead = "URI:SSK-RO:ro7pnpq6duaduuolookwbv5lqy:xlwog3jxbgsuaddh3bsofwmyhncv7fanmo7ujhqiy26usx2v2neq"
                 validVerify = "URI:SSK-Verifier:gz4s2zkkqy2geblvv77atyoppi:xlwog3jxbgsuaddh3bsofwmyhncv7fanmo7ujhqiy26usx2v2neq"
 
-                parsed = rights $ parse Tahoe.SDMF.pCapability "<test>" <$> [validWrite, validVerify, validRead]
+                parsed = rights $ parse Tahoe.SDMF.pCapability "<test>" <$> [validWrite, validRead, validVerify]
 
             assertEqual "parsing failed" 3 (length parsed)
+            let [Tahoe.SDMF.SDMFWriter writeCap, Tahoe.SDMF.SDMFReader readCap, Tahoe.SDMF.SDMFVerifier verifyCap] = parsed
+
+            assertEqual "derived reader /= parsed reader" (Tahoe.SDMF.writerReader writeCap) readCap
+            assertEqual "derived verifier /= parsed verifier" (Tahoe.SDMF.readerVerifier readCap) verifyCap
         , testProperty "Share round-trips through bytes" $
             property $ do
                 share <- forAll shares

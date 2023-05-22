@@ -8,6 +8,8 @@ module Tahoe.SDMF (
 
 import Tahoe.SDMF.Internal.Capability (
     Reader (..),
+    SDMF (..),
+    Verifier (..),
     Writer (..),
     pCapability,
     pReader,

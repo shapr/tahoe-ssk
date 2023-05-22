@@ -10,7 +10,6 @@ import Data.Binary (decode)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Base32 as B
 import qualified Data.ByteString.Lazy as LB
-import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -24,18 +23,21 @@ data Verifier = Verifier
     { verifierStorageIndex :: StorageIndex
     , verifierVerificationKeyHash :: Digest SHA256
     }
+    deriving (Eq, Show)
 
 -- | A read capability for an SDMF object.
 data Reader = Reader
     { readerReadKey :: Read
     , readerVerifier :: Verifier
     }
+    deriving (Eq, Show)
 
 -- | A write capability for an SDMF object.
 data Writer = Writer
     { writerWriteKey :: Write
     , writerReader :: Reader
     }
+    deriving (Eq, Show)
 
 -- | Diminish a write key to a read key and wrap it in a reader capability.
 deriveReader :: Write -> Digest SHA256 -> Maybe Reader
