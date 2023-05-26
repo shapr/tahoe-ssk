@@ -24,41 +24,8 @@ hlint:
 
 # Use cabal to build the library and test suite and then run the test suite.
 cabal-build-and-test:
-  cache:
-    # The cache is additive.  We can aways push more objects to it.  The cabal
-    # system uses a hash mechanism so that different builds will never collide
-    # with each other.  We can probably safely add to a single cache
-    # indefinitely so we don't try to make come up with a fancy cache key.
-    # Compared to trying to use a hash of our dependencies (or, eg, the .cabal
-    # file itself) as a cache key, this saves us a lot of rebuilding when we
-    # have a minor change in dependencies or packaging metadata.  The possibly
-    # shortcoming of this approach is that the cache will grow without bounds
-    # as our dependencies change.  It would be nice if there were a way to
-    # trim stale dependencies from it periodically.
-    key: "v0-cabal"
-
-    # Even if a build fails (eg because of a test suite failure or because the
-    # job timed out because building things took too long), there will be
-    # useful build artifacts worth caching - perhaps some new dependencies
-    # will have been built, for example.  We may as well cache these.
-    when: "always"
-
-    # These paths are resolved relative to the project directory.
-    paths:
-      # Cabal normally writes this directory to $HOME.  However, we override
-      # this (in the job script) to put the directory into the project
-      # checkout, since that's the only place we can cache files from.
-      - ".cabal"
-
   script:
     - |
-      # Configure cabal to put its caches beneath the project directory.
-      # This is only done in CI configuration because non-CI users probably
-      # want their local cabal configuration left alone.
-      cat >cabal.project.local <<EOF
-      store-dir: $CI_PROJECT_DIR/.cabal
-      remote-repo-cache: $CI_PROJECT_DIR/.cabal/packages
-      EOF
       nix run .#cabal-test
 
 # Use nix to build the library and test suite and run the test suite.
