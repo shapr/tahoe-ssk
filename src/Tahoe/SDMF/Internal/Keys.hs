@@ -46,6 +46,9 @@ newtype Signature = Signature {unSignature :: RSA.PrivateKey}
 
 data Write = Write {unWrite :: AES128, writeKeyBytes :: ByteArray.ScrubbedBytes}
 
+instance Eq Write where
+    (Write _ left) == (Write _ right) = left == right
+
 instance Binary Write where
     put = putByteString . ByteArray.convert . writeKeyBytes
     get = do
@@ -54,9 +57,27 @@ instance Binary Write where
         pure Write{..}
 
 instance Show Write where
-    show (Write _ bs) = T.unpack $ T.concat ["<WriteKey ", encodeBase32Unpadded (ByteArray.convert bs), ">"]
+    show (Write _ bs) =
+        T.unpack $
+            T.concat
+                [ "<WriteKey "
+                , shorten 4 . showBase32 . ByteArray.convert $ bs
+                , ">"
+                ]
 
 data Read = Read {unRead :: AES128, readKeyBytes :: ByteArray.ScrubbedBytes}
+
+instance Eq Read where
+    (Read _ left) == (Read _ right) = left == right
+
+instance Show Read where
+    show (Read _ bs) =
+        T.unpack $
+            T.concat
+                [ "<ReadKey "
+                , shorten 4 . showBase32 . ByteArray.convert $ bs
+                , ">"
+                ]
 
 instance Binary Read where
     put = putByteString . ByteArray.convert . readKeyBytes
@@ -65,22 +86,35 @@ instance Binary Read where
         let (CryptoPassed unRead) = cipherInit readKeyBytes
         pure Read{..}
 
-instance Show Read where
-    show (Read _ bs) = T.unpack $ T.concat ["<ReadKey ", encodeBase32Unpadded (ByteArray.convert bs), ">"]
-instance Eq Read where
-    (Read _ left) == (Read _ right) = left == right
+newtype StorageIndex = StorageIndex {unStorageIndex :: B.ByteString} deriving newtype (Eq)
 
-newtype StorageIndex = StorageIndex {unStorageIndex :: B.ByteString}
+instance Show StorageIndex where
+    show (StorageIndex si) =
+        T.unpack $
+            T.concat
+                [ "<SI "
+                , shorten 4 . showBase32 . ByteArray.convert $ si
+                , ">"
+                ]
 
 newtype WriteEnablerMaster = WriteEnablerMaster ByteArray.ScrubbedBytes
 
 newtype WriteEnabler = WriteEnabler ByteArray.ScrubbedBytes
 
 data Data = Data {unData :: AES128, dataKeyBytes :: ByteArray.ScrubbedBytes}
+
 instance Show Data where
-    show (Data _ bs) = T.unpack $ T.concat ["<DataKey ", encodeBase32Unpadded (ByteArray.convert bs), ">"]
+    show (Data _ bs) =
+        T.unpack $
+            T.concat
+                [ "<DataKey "
+                , shorten 4 . showBase32 . ByteArray.convert $ bs
+                , ">"
+                ]
+
 instance Eq Data where
     (Data _ left) == (Data _ right) = left == right
+
 instance Binary Data where
     put = putByteString . ByteArray.convert . dataKeyBytes
     get = do
@@ -93,12 +127,13 @@ newtype SDMF_IV = SDMF_IV (IV AES128)
     deriving newtype (ByteArray.ByteArrayAccess)
 
 instance Show SDMF_IV where
-    show (SDMF_IV iv) = T.unpack . T.toLower . encodeBase32Unpadded . ByteArray.convert $ iv
+    show (SDMF_IV iv) = T.unpack . showBase32 . ByteArray.convert $ iv
 
 -- | The size of the public/private key pair to generate.
 keyPairBits :: Int
 keyPairBits = 2048
 
+-- | The number of bytes in the block cipher key.
 keyLength :: Int
 (KeySizeFixed keyLength) = cipherKeySize (undefined :: AES128)
 
@@ -256,3 +291,15 @@ signatureKeyFromBytes bs = do
 -- | Encrypt the signature key for inclusion in the SDMF share itself.
 encryptSignatureKey :: Write -> Signature -> B.ByteString
 encryptSignatureKey Write{unWrite} = ctrCombine unWrite nullIV . signatureKeyToBytes
+
+{- | Replace most of the tail of a string with a short placeholder.  If the
+ string is not much longer than `n` then the result might not actually be
+ shorter.
+
+ TODO: Deduplicate this between here and tahoe-chk.
+-}
+shorten :: Int -> T.Text -> T.Text
+shorten n = (<> "...") . T.take n
+
+showBase32 :: B.ByteString -> T.Text
+showBase32 = T.toLower . encodeBase32Unpadded

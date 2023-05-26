@@ -58,7 +58,7 @@ extra-doc-files:    CHANGELOG.md
 extra-source-files: test/data/*
 
 common warnings
-  ghc-options: -Wall
+  ghc-options: -Wall -Werror=missing-fields
 
 common language
   default-extensions:
@@ -70,11 +70,14 @@ common language
     RecordWildCards
     TypeApplications
 
+  -- Base language which the package is written in.
   default-language:   Haskell2010
 
 library
-  import:          warnings
-  import:          language
+  import:
+    warnings
+    , language
+
   hs-source-dirs:  src
   exposed-modules:
     Tahoe.SDMF
@@ -94,7 +97,9 @@ library
     , binary
     , bytestring
     , cereal
+    , containers
     , cryptonite
+    , megaparsec
     , memory
     , text
     , x509
@@ -104,28 +109,21 @@ library
   build-depends:   tahoe-chk
 
 test-suite tahoe-ssk-test
-  -- Import common warning flags.
-  import:             warnings
-  import:             language
-
-  -- Base language which the package is written in.
-  default-language:   Haskell2010
-  default-extensions: OverloadedStrings
-
-  -- Modules included in this executable, other than Main.
-  -- other-modules:
+  import:
+    warnings
+    , language
 
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:
 
   -- The interface type and version of the test suite.
-  type:               exitcode-stdio-1.0
+  type:           exitcode-stdio-1.0
 
   -- Directories containing source files.
-  hs-source-dirs:     test
+  hs-source-dirs: test
 
   -- The entrypoint to the test suite.
-  main-is:            Main.hs
+  main-is:        Main.hs
   other-modules:
     Generators
     Spec
@@ -140,6 +138,7 @@ test-suite tahoe-ssk-test
     , bytestring
     , cryptonite
     , hedgehog
+    , megaparsec
     , memory
     , tahoe-chk
     , tahoe-ssk
@@ -151,10 +150,12 @@ test-suite tahoe-ssk-test
 
 -- A helper for generating RSA key pairs for use by the test suite.
 executable make-keypairs
-  import:           warnings
-  default-language: Haskell2010
-  main-is:          Main.hs
-  hs-source-dirs:   make-keypairs
+  import:
+    warnings
+    , language
+
+  main-is:        Main.hs
+  hs-source-dirs: make-keypairs
   build-depends:
     , asn1-encoding
     , asn1-types
