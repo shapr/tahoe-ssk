@@ -7,6 +7,7 @@ import Control.Applicative ((<|>))
 import Control.Monad (void)
 import Crypto.Hash (Digest, SHA256, digestFromByteString)
 import Data.Binary (decode)
+import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Base32 as B
 import qualified Data.ByteString.Lazy as LB
@@ -15,10 +16,20 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Void (Void)
 import Data.Word (Word16)
-import Tahoe.SDMF.Internal.Keys (Read, StorageIndex (StorageIndex), Write, deriveReadKey, deriveStorageIndex)
+import Tahoe.SDMF.Internal.Keys (
+    Read (readKeyBytes),
+    StorageIndex (StorageIndex, unStorageIndex),
+    Write (writeKeyBytes),
+    deriveReadKey,
+    deriveStorageIndex,
+    readKeyBytes,
+    shorten,
+    showBase32,
+ )
 import Text.Megaparsec (ErrorFancy (ErrorFail), Parsec, count, failure, fancyFailure, oneOf)
 import Text.Megaparsec.Char (char, string)
 
+-- | A verify capability for an SDMF object.
 data Verifier = Verifier
     { verifierStorageIndex :: StorageIndex
     , verifierVerificationKeyHash :: Digest SHA256
@@ -51,7 +62,7 @@ deriveVerifier readKey = Verifier storageIndex
   where
     storageIndex = deriveStorageIndex readKey
 
-data SDMF = SDMFVerifier Verifier | SDMFReader Reader | SDMFWriter Writer
+data SDMF = SDMFVerifier Verifier | SDMFReader Reader | SDMFWriter Writer deriving (Eq, Show)
 
 type Parser = Parsec Void T.Text
 
@@ -136,3 +147,27 @@ pBase32 alpha bits = do
 -}
 rfc3548Alphabet :: [Char]
 rfc3548Alphabet = "abcdefghijklmnopqrstuvwxyz234567"
+
+-- | Show an SDMF capability, including all secret information.
+dangerRealShow :: SDMF -> T.Text
+dangerRealShow (SDMFVerifier Verifier{verifierStorageIndex, verifierVerificationKeyHash}) =
+    T.concat
+        [ "URI:SSK-Verifier:"
+        , showBase32 . unStorageIndex $ verifierStorageIndex
+        , ":"
+        , showBase32 . ByteArray.convert $ verifierVerificationKeyHash
+        ]
+dangerRealShow (SDMFReader Reader{readerReadKey, readerVerifier}) =
+    T.concat
+        [ "URI:SSK-RO:"
+        , showBase32 . ByteArray.convert . readKeyBytes $ readerReadKey
+        , ":"
+        , showBase32 . ByteArray.convert . verifierVerificationKeyHash $ readerVerifier
+        ]
+dangerRealShow (SDMFWriter Writer{writerWriteKey, writerReader}) =
+    T.concat
+        [ "URI:SSK:"
+        , showBase32 . ByteArray.convert . writeKeyBytes $ writerWriteKey
+        , ":"
+        , showBase32 . ByteArray.convert . verifierVerificationKeyHash . readerVerifier $ writerReader
+        ]

@@ -61,8 +61,7 @@ instance Show Write where
         T.unpack $
             T.concat
                 [ "<WriteKey "
-                , T.take 4 . encodeBase32Unpadded . ByteArray.convert $ bs
-                , "..."
+                , shorten 4 . showBase32 . ByteArray.convert $ bs
                 , ">"
                 ]
 
@@ -76,8 +75,7 @@ instance Show Read where
         T.unpack $
             T.concat
                 [ "<ReadKey "
-                , T.take 4 . encodeBase32Unpadded . ByteArray.convert $ bs
-                , "..."
+                , shorten 4 . showBase32 . ByteArray.convert $ bs
                 , ">"
                 ]
 
@@ -95,8 +93,7 @@ instance Show StorageIndex where
         T.unpack $
             T.concat
                 [ "<SI "
-                , T.take 4 . encodeBase32Unpadded . ByteArray.convert $ si
-                , "..."
+                , shorten 4 . showBase32 . ByteArray.convert $ si
                 , ">"
                 ]
 
@@ -105,10 +102,19 @@ newtype WriteEnablerMaster = WriteEnablerMaster ByteArray.ScrubbedBytes
 newtype WriteEnabler = WriteEnabler ByteArray.ScrubbedBytes
 
 data Data = Data {unData :: AES128, dataKeyBytes :: ByteArray.ScrubbedBytes}
+
 instance Show Data where
-    show (Data _ bs) = T.unpack $ T.concat ["<DataKey ", encodeBase32Unpadded (ByteArray.convert bs), ">"]
+    show (Data _ bs) =
+        T.unpack $
+            T.concat
+                [ "<DataKey "
+                , shorten 4 . showBase32 . ByteArray.convert $ bs
+                , ">"
+                ]
+
 instance Eq Data where
     (Data _ left) == (Data _ right) = left == right
+
 instance Binary Data where
     put = putByteString . ByteArray.convert . dataKeyBytes
     get = do
@@ -121,12 +127,13 @@ newtype SDMF_IV = SDMF_IV (IV AES128)
     deriving newtype (ByteArray.ByteArrayAccess)
 
 instance Show SDMF_IV where
-    show (SDMF_IV iv) = T.unpack . T.toLower . encodeBase32Unpadded . ByteArray.convert $ iv
+    show (SDMF_IV iv) = T.unpack . showBase32 . ByteArray.convert $ iv
 
 -- | The size of the public/private key pair to generate.
 keyPairBits :: Int
 keyPairBits = 2048
 
+-- | The number of bytes in the block cipher key.
 keyLength :: Int
 (KeySizeFixed keyLength) = cipherKeySize (undefined :: AES128)
 
@@ -293,3 +300,6 @@ encryptSignatureKey Write{unWrite} = ctrCombine unWrite nullIV . signatureKeyToB
 -}
 shorten :: Int -> T.Text -> T.Text
 shorten n = (<> "...") . T.take n
+
+showBase32 :: B.ByteString -> T.Text
+showBase32 = T.toLower . encodeBase32Unpadded

@@ -1,14 +1,16 @@
 module Generators where
 
 import Crypto.Cipher.Types (makeIV)
-import Crypto.Hash (HashAlgorithm (hashDigestSize))
+import Crypto.Hash (Digest, HashAlgorithm (hashDigestSize), SHA256, digestFromByteString)
 import Crypto.Hash.Algorithms (SHA256 (SHA256))
 import Data.ASN1.BinaryEncoding (DER (DER))
 import Data.ASN1.Encoding (ASN1Decoding (decodeASN1), ASN1Encoding (encodeASN1))
 import Data.ASN1.Types (ASN1Object (fromASN1, toASN1))
 import Data.Bifunctor (Bifunctor (first))
+import qualified Data.Binary as Binary
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
+import Data.Maybe (fromJust)
 import Data.Word (Word16)
 import Data.X509 (PrivKey (PrivKeyRSA))
 import GHC.IO.Unsafe (unsafePerformIO)
@@ -16,7 +18,9 @@ import Hedgehog (MonadGen)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Tahoe.CHK.Merkle (MerkleTree (..), makeTreePartial)
-import Tahoe.SDMF (Share (..))
+import Tahoe.SDMF (Reader (..), SDMF (..), Share (..), Verifier (..), Writer (..))
+import Tahoe.SDMF.Internal.Capability (deriveReader)
+import Tahoe.SDMF.Internal.Keys (keyLength)
 import Tahoe.SDMF.Internal.Share (HashChain (HashChain))
 import qualified Tahoe.SDMF.Keys as Keys
 
@@ -103,3 +107,42 @@ encodingParameters = do
     required <- Gen.integral (Range.exponential 1 254)
     total <- Gen.integral (Range.exponential (required + 1) 255)
     pure (required, total)
+
+-- | Build all kinds of SDMF capabilities values.
+capabilities :: MonadGen m => m SDMF
+capabilities =
+    Gen.choice
+        [ SDMFVerifier <$> verifiers
+        , SDMFReader <$> readers
+        , SDMFWriter <$> writers
+        ]
+
+-- | Build SDMF writer capabilities.
+writers :: MonadGen m => m Writer
+writers = do
+    writeKey <- writeKeys
+    reader <- deriveReader writeKey <$> digests
+    pure $ Writer writeKey (fromJust reader)
+
+-- | Build SDMF writer capability keys.
+writeKeys :: MonadGen m => m Keys.Write
+writeKeys = key
+  where
+    writeBytes = Gen.bytes (Range.singleton 16)
+    key = Binary.decode . LB.fromStrict <$> writeBytes
+
+-- | Build SDMF reader capabilities.
+readers :: MonadGen m => m Reader
+readers = writerReader <$> writers
+
+-- | Build SDMF verifier capabilities.
+verifiers :: MonadGen m => m Verifier
+verifiers = readerVerifier <$> readers
+
+-- | Build SDMF storage indexes.
+storageIndexes :: MonadGen m => m Keys.StorageIndex
+storageIndexes = Keys.StorageIndex <$> Gen.bytes (Range.singleton keyLength)
+
+-- | Build SHA256 digests.
+digests :: MonadGen m => m (Digest SHA256)
+digests = fromJust . digestFromByteString <$> Gen.bytes (Range.singleton 32)

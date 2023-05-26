@@ -11,6 +11,7 @@ import Tahoe.SDMF.Internal.Capability (
     SDMF (..),
     Verifier (..),
     Writer (..),
+    dangerRealShow,
     pCapability,
     pReader,
     pVerifier,

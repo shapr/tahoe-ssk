@@ -22,7 +22,7 @@ import Data.ByteString.Base32 (decodeBase32Unpadded, encodeBase32Unpadded)
 import qualified Data.ByteString.Lazy as LB
 import Data.Either (rights)
 import qualified Data.Text as T
-import Generators (encodingParameters, genRSAKeys, shareHashChains, shares)
+import Generators (capabilities, encodingParameters, genRSAKeys, shareHashChains, shares)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import System.IO (hSetEncoding, stderr, stdout, utf8)
@@ -143,18 +143,29 @@ tests =
                             "write enabler: expected /= derived"
                             expectedWriteEnabler
                             (fmtKey derivedWriteEnabler)
-        , testCase "known-correct SDMF capabilities can be parsed" $ do
+        , testCase "known-correct SDMF capability strings round-trip through parse . dangerRealShow" $ do
             let validWrite = "URI:SSK:vbopclzrkxces6okoqfarapmou:xlwog3jxbgsuaddh3bsofwmyhncv7fanmo7ujhqiy26usx2v2neq"
                 validRead = "URI:SSK-RO:ro7pnpq6duaduuolookwbv5lqy:xlwog3jxbgsuaddh3bsofwmyhncv7fanmo7ujhqiy26usx2v2neq"
                 validVerify = "URI:SSK-Verifier:gz4s2zkkqy2geblvv77atyoppi:xlwog3jxbgsuaddh3bsofwmyhncv7fanmo7ujhqiy26usx2v2neq"
 
                 parsed = rights $ parse Tahoe.SDMF.pCapability "<test>" <$> [validWrite, validRead, validVerify]
+                serialized = Tahoe.SDMF.dangerRealShow <$> parsed
 
             assertEqual "parsing failed" 3 (length parsed)
-            let [Tahoe.SDMF.SDMFWriter writeCap, Tahoe.SDMF.SDMFReader readCap, Tahoe.SDMF.SDMFVerifier verifyCap] = parsed
+            assertEqual "original /= serialized" [validWrite, validRead, validVerify] serialized
 
-            assertEqual "derived reader /= parsed reader" (Tahoe.SDMF.writerReader writeCap) readCap
-            assertEqual "derived verifier /= parsed verifier" (Tahoe.SDMF.readerVerifier readCap) verifyCap
+            let [Tahoe.SDMF.SDMFWriter writeCap, Tahoe.SDMF.SDMFReader readCap, Tahoe.SDMF.SDMFVerifier verifyCap] = parsed
+                derivedReader = Tahoe.SDMF.writerReader writeCap
+                derivedVerifier = Tahoe.SDMF.readerVerifier readCap
+
+            assertEqual "derived reader /= parsed reader" derivedReader readCap
+            assertEqual "serialized derived reader /= original" (Tahoe.SDMF.dangerRealShow . Tahoe.SDMF.SDMFReader $ derivedReader) validRead
+            assertEqual "derived verifier /= parsed verifier" derivedVerifier verifyCap
+            assertEqual "serialized derived verifier /= original" (Tahoe.SDMF.dangerRealShow . Tahoe.SDMF.SDMFVerifier $ derivedVerifier) validVerify
+        , testProperty "SDMF capabilities round-trip through dangerRealShow . parse pCapability" $
+            property $ do
+                cap <- forAll capabilities
+                tripping cap Tahoe.SDMF.dangerRealShow (parse Tahoe.SDMF.pCapability "<text>")
         , testProperty "Share round-trips through bytes" $
             property $ do
                 share <- forAll shares
