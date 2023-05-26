@@ -26,8 +26,22 @@ import Tahoe.SDMF.Internal.Keys (
     shorten,
     showBase32,
  )
-import Text.Megaparsec (ErrorFancy (ErrorFail), Parsec, count, failure, fancyFailure, oneOf)
+import Text.Megaparsec (
+    ErrorFancy (ErrorFail),
+    Parsec,
+    count,
+    failure,
+    fancyFailure,
+    oneOf,
+ )
 import Text.Megaparsec.Char (char, string)
+
+-- | Any kind of SDMF capability.
+data SDMF
+    = SDMFVerifier Verifier
+    | SDMFReader Reader
+    | SDMFWriter Writer
+    deriving (Eq, Show)
 
 -- | A verify capability for an SDMF object.
 data Verifier = Verifier
@@ -57,12 +71,11 @@ deriveReader w fingerprint = Reader <$> readKey <*> verifier
     readKey = deriveReadKey w
     verifier = flip deriveVerifier fingerprint <$> readKey
 
+-- | Diminish a read key to a verify key and wrap it in a verifier capability.
 deriveVerifier :: Read -> Digest SHA256 -> Verifier
 deriveVerifier readKey = Verifier storageIndex
   where
     storageIndex = deriveStorageIndex readKey
-
-data SDMF = SDMFVerifier Verifier | SDMFReader Reader | SDMFWriter Writer deriving (Eq, Show)
 
 type Parser = Parsec Void T.Text
 
@@ -90,7 +103,16 @@ pWriter = do
         Nothing -> failure Nothing mempty
         Just writer -> pure writer
 
-pPieces :: T.Text -> (B.ByteString -> a) -> Parser (a, Digest SHA256)
+{- | A parser for two base32-encoded bytestrings with some given prefix,
+ formatted as they are in the string representation of an SDMF capability.
+-}
+pPieces ::
+    -- | The prefix to expect.
+    T.Text ->
+    -- | A function to convert the first bytestring to a result value.
+    (B.ByteString -> a) ->
+    -- | A parser for the two pieces of the SDMF capability.
+    Parser (a, Digest SHA256)
 pPieces prefix convertSecret = do
     void $ string prefix
     secret <- convertSecret <$> pBase32 rfc3548Alphabet 128
