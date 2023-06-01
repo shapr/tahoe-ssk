@@ -7,9 +7,8 @@ module Tahoe.SDMF.Internal.Encoding where
 
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import Crypto.Cipher.Types (BlockCipher (blockSize), IV, makeIV)
 import Crypto.Hash (digestFromByteString)
-import Crypto.Random (MonadRandom (getRandomBytes))
+import Crypto.Random (MonadRandom)
 import Data.Bifunctor (Bifunctor (bimap))
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
@@ -23,10 +22,6 @@ import Tahoe.SDMF.Internal.Converting (from, tryInto)
 import qualified Tahoe.SDMF.Internal.Keys as Keys
 import Tahoe.SDMF.Internal.Share (HashChain (HashChain), Share (..))
 
--- | Randomly generate a new IV suitable for use with some BlockCipher.
-randomIV :: forall c m. (BlockCipher c, MonadRandom m) => m (Maybe (IV c))
-randomIV = (makeIV :: B.ByteString -> Maybe (IV c)) <$> getRandomBytes (blockSize (undefined :: c))
-
 {- | Given a pre-determined key pair and sequence number, encode some
  ciphertext into a collection of SDMF shares.
 
@@ -34,8 +29,8 @@ randomIV = (makeIV :: B.ByteString -> Maybe (IV c)) <$> getRandomBytes (blockSiz
  Thus they cannot be re-used for "different" data.  Any shares created with a
  given key pair are part of the same logical data object.
 -}
-encode :: (MonadFail m, MonadIO m, MonadRandom m) => Keys.KeyPair -> Word64 -> Word16 -> Word16 -> LB.ByteString -> m ([Share], Writer)
-encode keypair shareSequenceNumber required total ciphertext = do
+encode :: (MonadFail m, MonadIO m, MonadRandom m) => Keys.KeyPair -> Keys.SDMF_IV -> Word64 -> Word16 -> Word16 -> LB.ByteString -> m ([Share], Writer)
+encode keypair iv shareSequenceNumber required total ciphertext = do
     -- Make sure the encoding parameters fit into a Word8
     requiredAsWord8 <- tryInto @Word8 ("must have 0 < required < 255 but required == " <> show required) required
     totalAsWord8 <- tryInto @Word8 ("must have 0 < total < 256 but total == " <> show total) total
@@ -45,8 +40,6 @@ encode keypair shareSequenceNumber required total ciphertext = do
 
     -- They look okay, we can proceed.
     blocks <- liftIO $ fmap LB.fromStrict <$> zfec (from required) (from total) paddedCiphertext
-
-    (Just iv) <- randomIV
 
     -- We know the length won't be negative (doesn't make sense) and we
     -- know all positive values fit into a Word64 so we can do this
@@ -63,7 +56,7 @@ encode keypair shareSequenceNumber required total ciphertext = do
             flip $
                 makeShare
                     shareSequenceNumber
-                    (Keys.SDMF_IV iv)
+                    iv
                     requiredAsWord8
                     totalAsWord8
                     dataLength
