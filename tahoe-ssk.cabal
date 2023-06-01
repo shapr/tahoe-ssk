@@ -54,8 +54,11 @@ build-type:         Simple
 extra-doc-files:    CHANGELOG.md
 
 -- Extra source files to be distributed with the package, such as examples, or
--- a tutorial module.  In our case, test data.
-extra-source-files: test/data/*
+-- a tutorial module.
+extra-source-files:
+  ChangeLog.rst
+  README.rst
+  test/data/*
 
 common warnings
   ghc-options: -Wall -Werror=missing-fields
