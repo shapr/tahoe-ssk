@@ -11,7 +11,11 @@ However, its APIs are intended to be easy to integrate with such an implementati
 
 ### What is the current state?
 
-* All implementation tasks are pending.
+* SDMF write, read, and verify capabilities can be parsed and serialized.
+* SDMF shares can be deserialized, decoded, and decrypted.
+* Plaintext can be encrypted, encoded into shares, and the shares serialized to bytes.
+  * Not all fields of the shares contain correctly initialized values.
+  * Enough fields are correctly populated to recover the original plaintext.
 
 ## Why does it exist?
 

@@ -22,7 +22,7 @@ import Data.ByteString.Base32 (decodeBase32Unpadded, encodeBase32Unpadded)
 import qualified Data.ByteString.Lazy as LB
 import Data.Either (rights)
 import qualified Data.Text as T
-import Generators (capabilities, encodingParameters, genRSAKeys, shareHashChains, shares)
+import Generators (capabilities, encodingParameters, genRSAKeys, ivLength, shareHashChains, shares)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import System.IO (hSetEncoding, stderr, stdout, utf8)
@@ -175,11 +175,13 @@ tests =
         , testProperty "Ciphertext round-trips through encode . decode" $
             property $ do
                 keypair <- forAll genRSAKeys
+                ivBytes <- forAll $ Gen.bytes (Range.singleton ivLength)
+                let Just iv = Keys.SDMF_IV <$> makeIV ivBytes
                 ciphertext <- forAll $ LB.fromStrict <$> Gen.bytes (Range.exponential 1 1024)
                 sequenceNumber <- forAll $ Gen.integral Range.exponentialBounded
                 (required, total) <- forAll encodingParameters
 
-                (shares', Tahoe.SDMF.Writer{Tahoe.SDMF.writerReader}) <- liftIO $ Tahoe.SDMF.encode keypair sequenceNumber required total ciphertext
+                (shares', Tahoe.SDMF.Writer{Tahoe.SDMF.writerReader}) <- liftIO $ Tahoe.SDMF.encode keypair iv sequenceNumber required total ciphertext
 
                 annotateShow shares'
 
@@ -190,12 +192,11 @@ tests =
                 do
                     keypair <- forAll genRSAKeys
                     (Just iv) <- fmap Keys.SDMF_IV <$> (makeIV <$> forAll (Gen.bytes (Range.singleton 16)))
-                    let (Just dataKey) = do
+                    let (Just readKey) = do
                             writeKey <- Keys.deriveWriteKey (Keys.toSignatureKey keypair)
-                            readKey <- Keys.deriveReadKey writeKey
-                            Keys.deriveDataKey iv readKey
+                            Keys.deriveReadKey writeKey
                     plaintext <- forAll $ LB.fromStrict <$> Gen.bytes (Range.exponential 1 1024)
-                    tripping plaintext (Tahoe.SDMF.encrypt dataKey) (Just . Tahoe.SDMF.decrypt dataKey)
+                    tripping plaintext (Tahoe.SDMF.encrypt keypair iv) (Just . Tahoe.SDMF.decrypt readKey iv)
         , testCase "Recover plaintext from a known-correct slot" $ do
             s0 <- liftIO $ Binary.decode <$> (LB.readFile "test/data/3of10.0" >>= readShareFromBucket)
             s6 <- liftIO $ Binary.decode <$> (LB.readFile "test/data/3of10.6" >>= readShareFromBucket)
@@ -213,7 +214,7 @@ tests =
                 expectedPlaintext = "abcdefghijklmnopqrstuvwxyzZYXWVUTSRQPONMLKJIJHGRFCBA1357"
 
                 (Just dataKey) = Keys.deriveDataKey (Tahoe.SDMF.shareIV s0) readerReadKey
-                recoveredPlaintext = Tahoe.SDMF.decrypt dataKey ciphertext
+                recoveredPlaintext = Tahoe.SDMF.decrypt readerReadKey (Tahoe.SDMF.shareIV s0) ciphertext
 
             assertEqual "read key: expected /= derived" expectedReadKey readerReadKey
             assertEqual "data key: expected /= derived" expectedDataKey dataKey

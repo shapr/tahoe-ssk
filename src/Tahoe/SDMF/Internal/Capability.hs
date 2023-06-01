@@ -23,7 +23,6 @@ import Tahoe.SDMF.Internal.Keys (
     deriveReadKey,
     deriveStorageIndex,
     readKeyBytes,
-    shorten,
     showBase32,
  )
 import Text.Megaparsec (

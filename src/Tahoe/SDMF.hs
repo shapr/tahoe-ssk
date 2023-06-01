@@ -24,6 +24,7 @@ import Tahoe.SDMF.Internal.Encoding (
 import Tahoe.SDMF.Internal.Encrypting (
     decrypt,
     encrypt,
+    randomIV,
  )
 import Tahoe.SDMF.Internal.Share (
     Share (..),
