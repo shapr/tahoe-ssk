@@ -8,6 +8,7 @@ import Hedgehog (
     tripping,
  )
 
+import Control.Monad.Fail (MonadFail)
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Crypto.Cipher.Types (makeIV)
