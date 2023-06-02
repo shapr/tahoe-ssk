@@ -5,6 +5,7 @@
 -}
 module Tahoe.SDMF.Internal.Encoding where
 
+import Control.Monad.Fail (MonadFail)
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Crypto.Hash (digestFromByteString)

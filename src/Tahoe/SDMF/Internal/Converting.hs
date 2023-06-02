@@ -7,6 +7,7 @@
 -}
 module Tahoe.SDMF.Internal.Converting where
 
+import Control.Monad.Fail (MonadFail)
 import Data.Int (Int64)
 import Data.Word (Word16, Word32, Word64, Word8)
 
