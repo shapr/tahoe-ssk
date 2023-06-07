@@ -10,6 +10,10 @@
       url = "git+https://whetstone.private.storage/PrivateStorage/tahoe-chk?ref=refs/tags/0.1.0.1";
       inputs.nixpkgs.follows = "hs-flake-utils/nixpkgs";
     };
+    tahoe-capabilities = {
+      url = "git+https://whetstone.private.storage/PrivateStorage/tahoe-capabilities";
+      inputs.nixpkgs.follows = "hs-flake-utils/nixpkgs";
+    };
   };
 
   outputs = {
@@ -18,6 +22,7 @@
     flake-utils,
     hs-flake-utils,
     tahoe-chk,
+    tahoe-capabilities,
   }: let
     ulib = flake-utils.lib;
     ghcVersion = "ghc8107";
@@ -34,6 +39,7 @@
         packageName = "tahoe-ssk";
         hsPkgsOverrides = hprev: hfinal: {
           tahoe-chk = tahoe-chk.outputs.packages.${system}.default;
+          tahoe-capabilities = tahoe-capabilities.outputs.packages.${system}.default;
         };
       };
     in {
@@ -65,6 +71,8 @@
                 -- another way.  Here, we get them from the Nix store.
                 -- tahoe-chk
                 ${tahoe-chk}
+                -- tahoe-capabilities
+                ${tahoe-capabilities}
               EOF
             '';
           }

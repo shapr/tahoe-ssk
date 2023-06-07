@@ -7,6 +7,7 @@ import qualified Data.ByteString.Lazy as LB
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import System.IO (stdin)
+import Tahoe.Capability (confidentiallyShow)
 import qualified Tahoe.SDMF as SDMF
 import qualified Tahoe.SDMF.Keys as SDMF.Keys
 
@@ -23,7 +24,7 @@ main = do
     let si = SDMF.Keys.unStorageIndex . SDMF.verifierStorageIndex . SDMF.readerVerifier . SDMF.writerReader $ writeCap
 
     mapM_ (uncurry (writeShare si)) (zip [0 :: Int ..] shareBytes)
-    T.putStrLn (SDMF.dangerRealShow (SDMF.SDMFWriter writeCap))
+    T.putStrLn $ confidentiallyShow writeCap
   where
     e = 0x10001
     writeShare si shnum = LB.writeFile $ (T.unpack . T.toLower . encodeBase32Unpadded $ si) <> "." <> show shnum
