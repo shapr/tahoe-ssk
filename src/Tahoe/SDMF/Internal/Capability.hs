@@ -16,6 +16,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Void (Void)
 import Data.Word (Word16)
+import Tahoe.Capability (ConfidentialShowable (..))
 import Tahoe.SDMF.Internal.Keys (
     Read (readKeyBytes),
     StorageIndex (StorageIndex, unStorageIndex),
@@ -42,12 +43,18 @@ data SDMF
     | SDMFWriter Writer
     deriving (Eq, Show)
 
+instance ConfidentialShowable SDMF where
+    confidentiallyShow = dangerRealShow
+
 -- | A verify capability for an SDMF object.
 data Verifier = Verifier
     { verifierStorageIndex :: StorageIndex
     , verifierVerificationKeyHash :: Digest SHA256
     }
     deriving (Eq, Show)
+
+instance ConfidentialShowable Verifier where
+    confidentiallyShow = dangerRealShow . SDMFVerifier
 
 -- | A read capability for an SDMF object.
 data Reader = Reader
@@ -56,12 +63,18 @@ data Reader = Reader
     }
     deriving (Eq, Show)
 
+instance ConfidentialShowable Reader where
+    confidentiallyShow = dangerRealShow . SDMFReader
+
 -- | A write capability for an SDMF object.
 data Writer = Writer
     { writerWriteKey :: Write
     , writerReader :: Reader
     }
     deriving (Eq, Show)
+
+instance ConfidentialShowable Writer where
+    confidentiallyShow = dangerRealShow . SDMFWriter
 
 -- | Diminish a write key to a read key and wrap it in a reader capability.
 deriveReader :: Write -> Digest SHA256 -> Maybe Reader
@@ -170,6 +183,7 @@ rfc3548Alphabet :: [Char]
 rfc3548Alphabet = "abcdefghijklmnopqrstuvwxyz234567"
 
 -- | Show an SDMF capability, including all secret information.
+{-# DEPRECATED dangerRealShow "Use the ConfidentialShowable instance" #-}
 dangerRealShow :: SDMF -> T.Text
 dangerRealShow (SDMFVerifier Verifier{verifierStorageIndex, verifierVerificationKeyHash}) =
     T.concat

@@ -104,6 +104,7 @@ library
     , cryptonite
     , megaparsec
     , memory
+    , tahoe-capabilities
     , text
     , x509
 
@@ -143,6 +144,7 @@ test-suite tahoe-ssk-test
     , hedgehog
     , megaparsec
     , memory
+    , tahoe-capabilities
     , tahoe-chk
     , tahoe-ssk
     , tasty
@@ -181,5 +183,6 @@ executable encode-ssk
     , binary
     , bytestring
     , cryptonite
+    , tahoe-capabilities
     , tahoe-ssk
     , text
