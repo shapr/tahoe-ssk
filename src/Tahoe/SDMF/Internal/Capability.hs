@@ -53,6 +53,9 @@ data Verifier = Verifier
     }
     deriving (Eq, Show)
 
+instance Ord Verifier where
+    a <= b = verifierStorageIndex a <= verifierStorageIndex b
+
 instance ConfidentialShowable Verifier where
     confidentiallyShow = dangerRealShow . SDMFVerifier
 
@@ -63,6 +66,9 @@ data Reader = Reader
     }
     deriving (Eq, Show)
 
+instance Ord Reader where
+    a <= b = readerVerifier a <= readerVerifier b
+
 instance ConfidentialShowable Reader where
     confidentiallyShow = dangerRealShow . SDMFReader
 
@@ -72,6 +78,9 @@ data Writer = Writer
     , writerReader :: Reader
     }
     deriving (Eq, Show)
+
+instance Ord Writer where
+    a <= b = writerReader a <= writerReader b
 
 instance ConfidentialShowable Writer where
     confidentiallyShow = dangerRealShow . SDMFWriter
