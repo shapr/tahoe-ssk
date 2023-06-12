@@ -86,7 +86,7 @@ instance Binary Read where
         let (CryptoPassed unRead) = cipherInit readKeyBytes
         pure Read{..}
 
-newtype StorageIndex = StorageIndex {unStorageIndex :: B.ByteString} deriving newtype (Eq)
+newtype StorageIndex = StorageIndex {unStorageIndex :: B.ByteString} deriving newtype (Eq, Ord)
 
 instance Show StorageIndex where
     show (StorageIndex si) =
