@@ -60,7 +60,22 @@ extra-doc-files:    ChangeLog.rst
 extra-source-files:
   ChangeLog.rst
   README.md
-  test/data/*
+  test/data/3of10.0
+  test/data/3of10.1
+  test/data/3of10.2
+  test/data/3of10.3
+  test/data/3of10.4
+  test/data/3of10.5
+  test/data/3of10.6
+  test/data/3of10.7
+  test/data/3of10.8
+  test/data/3of10.9
+  test/data/rsa-privkey-0.der
+  test/data/rsa-privkey-1.der
+  test/data/rsa-privkey-2.der
+  test/data/rsa-privkey-3.der
+  test/data/rsa-privkey-4.der
+  test/data/tahoe-lafs-generated-rsa-privkey.der
 
 common warnings
   ghc-options: -Wall -Werror=missing-fields
