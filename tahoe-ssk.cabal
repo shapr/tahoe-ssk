@@ -77,6 +77,11 @@ extra-source-files:
   test/data/rsa-privkey-4.der
   test/data/tahoe-lafs-generated-rsa-privkey.der
 
+source-repository head
+  type:     git
+  location:
+    gitlab@whetstone.private.storage:privatestorage/tahoe-ssk.git
+
 common warnings
   ghc-options: -Wall -Werror=missing-fields
 
