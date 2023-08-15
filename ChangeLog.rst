@@ -1,6 +1,13 @@
 Changelog for tahoe-ssk
 =======================
 
+0.2.1.0
+-------
+
+* Add Ord instances for StorageIndex, Verifier, Reader, and Writer.
+* Add ConfidentialShowable instances for SDMF, Verifier, Reader, and Writer.
+* Deprecate dangerRealShow.
+
 0.2.0.0
 -------
 
