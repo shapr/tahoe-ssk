@@ -53,13 +53,13 @@ category:           Cryptography,Library,Parsers,Security
 build-type:         Simple
 
 -- Extra doc files to be distributed with the package, such as a CHANGELOG or a README.
-extra-doc-files:    ChangeLog.rst
+extra-doc-files:
+  CHANGELOG.md
+  README.md
 
 -- Extra source files to be distributed with the package, such as examples, or
 -- a tutorial module.
 extra-source-files:
-  ChangeLog.rst
-  README.md
   test/data/3of10.0
   test/data/3of10.1
   test/data/3of10.2
