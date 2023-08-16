@@ -13,6 +13,7 @@ However, its APIs are intended to be easy to integrate with such an implementati
 
 * SDMF write, read, and verify capabilities can be parsed and serialized.
 * SDMF shares can be deserialized, decoded, and decrypted.
+  * The cryptographic integrity and authenticity is not verified.
 * Plaintext can be encrypted, encoded into shares, and the shares serialized to bytes.
   * Not all fields of the shares contain correctly initialized values.
   * Enough fields are correctly populated to recover the original plaintext.

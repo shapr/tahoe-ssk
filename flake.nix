@@ -79,23 +79,10 @@
         }/bin/generate-cabal-project";
       };
 
-      # Using the working directory of `nix run`, do a build with cabal and
-      # then run the test suite.
-      apps.cabal-test = {
-        type = "app";
-        program = "${
-          pkgs.writeShellApplication {
-            name = "cabal-build-and-test";
-            runtimeInputs = with pkgs; [pkg-config haskell.compiler.${ghcVersion} cabal-install];
-
-            text = ''
-              nix run .#generate-cabal-project
-              cabal update hackage.haskell.org
-              cabal build all
-              cabal run tests
-            '';
-          }
-        }/bin/cabal-build-and-test";
+      apps.cabal-test = hslib.apps.cabal-test {
+        preBuild = "nix run .#generate-cabal-project";
       };
+
+      apps.release = hslib.apps.release {};
     });
 }
