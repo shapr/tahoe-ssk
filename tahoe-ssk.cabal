@@ -132,7 +132,7 @@ library
 
   -- This dependency isn't ideal.  Move common bits out to
   -- another library.
-  build-depends:   tahoe-chk
+  build-depends:   tahoe-chk >=0.1 && <0.2
 
 test-suite tahoe-ssk-test
   import:
