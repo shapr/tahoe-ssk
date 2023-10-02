@@ -14,8 +14,8 @@ However, its APIs are intended to be easy to integrate with such an implementati
 * SDMF write, read, and verify capabilities can be parsed and serialized.
 * SDMF shares can be deserialized, decoded, and decrypted.
   * The cryptographic integrity is not verified:
-	* a share's block hashes are not checked against the share's block hash tree
-	* the root of the computed share hash tree is not checked against share's pre-computed share hash tree root
+    * a share's block hashes are not checked against the share's block hash tree
+    * the root of the computed share hash tree is not checked against share's pre-computed share hash tree root
   * The cryptographic authenticity is not verified:
     * signatures on the data are not checked
 
@@ -70,7 +70,7 @@ We want a library that:
   * is well-maintained
     * developers are responsive to security reports
     * has a channel for security-related disclosures
-	* has sound documentation for proper, safe usage
+    * has sound documentation for proper, safe usage
 
 And,
 of course,
