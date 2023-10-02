@@ -17,6 +17,7 @@ import Data.Int (Int64)
 import Data.Word (Word16, Word32, Word64, Word8)
 import Data.X509 (PrivKey (PrivKeyRSA), PubKey (PubKeyRSA))
 import Tahoe.CHK.Merkle (MerkleTree, leafHashes)
+import Tahoe.CHK.SHA256d (Digest' (Digest'), SHA256d, toBytes)
 import Tahoe.SDMF.Internal.Converting (From (from), into, tryInto)
 import qualified Tahoe.SDMF.Internal.Keys as Keys
 
@@ -81,7 +82,7 @@ data Share = Share
       -- ... something about verification I dunno. XXX
       shareHashChain :: HashChain
     , -- | A merkle tree where leaves are the hashes of the blocks in this share.
-      shareBlockHashTree :: MerkleTree
+      shareBlockHashTree :: MerkleTree B.ByteString SHA256d
     , -- | The share data (erasure encoded ciphertext).
       shareData :: LB.ByteString
     , -- | The encrypted 2048 bit "signature" RSA key.
@@ -113,7 +114,7 @@ instance Binary Share where
         putByteString shareEncryptedPrivateKey
       where
         verificationKeyBytes = Keys.verificationKeyToBytes shareVerificationKey
-        blockHashTreeBytes = B.concat . leafHashes $ shareBlockHashTree
+        blockHashTreeBytes = B.concat . fmap toBytes . leafHashes $ shareBlockHashTree
 
         -- Some conversions could fail because we can't be completely sure of
         -- the size of the data we're working with.  Put has no good failure

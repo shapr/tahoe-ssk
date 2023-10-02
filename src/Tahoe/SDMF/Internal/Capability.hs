@@ -5,7 +5,7 @@ import Prelude hiding (Read)
 
 import Control.Applicative ((<|>))
 import Control.Monad (void)
-import Crypto.Hash (Digest, SHA256, digestFromByteString)
+import Crypto.Hash (digestFromByteString)
 import Data.Binary (decode)
 import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString as B
@@ -16,6 +16,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Void (Void)
 import Data.Word (Word16)
+import Tahoe.CHK.SHA256d (Digest' (Digest'), SHA256d)
 import Tahoe.Capability (ConfidentialShowable (..))
 import Tahoe.SDMF.Internal.Keys (
     Read (readKeyBytes),
@@ -49,7 +50,7 @@ instance ConfidentialShowable SDMF where
 -- | A verify capability for an SDMF object.
 data Verifier = Verifier
     { verifierStorageIndex :: StorageIndex
-    , verifierVerificationKeyHash :: Digest SHA256
+    , verifierVerificationKeyHash :: Digest' SHA256d
     }
     deriving (Eq, Show)
 
@@ -86,14 +87,14 @@ instance ConfidentialShowable Writer where
     confidentiallyShow = dangerRealShow . SDMFWriter
 
 -- | Diminish a write key to a read key and wrap it in a reader capability.
-deriveReader :: Write -> Digest SHA256 -> Maybe Reader
+deriveReader :: Write -> Digest' SHA256d -> Maybe Reader
 deriveReader w fingerprint = Reader <$> readKey <*> verifier
   where
     readKey = deriveReadKey w
     verifier = flip deriveVerifier fingerprint <$> readKey
 
 -- | Diminish a read key to a verify key and wrap it in a verifier capability.
-deriveVerifier :: Read -> Digest SHA256 -> Verifier
+deriveVerifier :: Read -> Digest' SHA256d -> Verifier
 deriveVerifier readKey = Verifier storageIndex
   where
     storageIndex = deriveStorageIndex readKey
@@ -133,7 +134,7 @@ pPieces ::
     -- | A function to convert the first bytestring to a result value.
     (B.ByteString -> a) ->
     -- | A parser for the two pieces of the SDMF capability.
-    Parser (a, Digest SHA256)
+    Parser (a, Digest' SHA256d)
 pPieces prefix convertSecret = do
     void $ string prefix
     secret <- convertSecret <$> pBase32 rfc3548Alphabet 128
@@ -142,7 +143,7 @@ pPieces prefix convertSecret = do
     case digestFromByteString digestBytes of
         Nothing -> failure Nothing mempty
         Just verificationKeyHash ->
-            pure (secret, verificationKeyHash)
+            pure (secret, Digest' verificationKeyHash)
 
 {- | A parser combinator for an arbitrary byte string of a fixed length,
  encoded using base32.

@@ -1,3 +1,5 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Generators where
 
 import Crypto.Cipher.Types (makeIV)
@@ -10,7 +12,7 @@ import Data.Bifunctor (Bifunctor (first))
 import qualified Data.Binary as Binary
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, fromMaybe)
 import Data.Word (Word16)
 import Data.X509 (PrivKey (PrivKeyRSA))
 import GHC.IO.Unsafe (unsafePerformIO)
@@ -18,6 +20,7 @@ import Hedgehog (MonadGen)
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import Tahoe.CHK.Merkle (MerkleTree (..), makeTreePartial)
+import Tahoe.CHK.SHA256d (Digest' (Digest'), SHA256d)
 import Tahoe.SDMF (Reader (..), SDMF (..), Share (..), Verifier (..), Writer (..))
 import Tahoe.SDMF.Internal.Capability (deriveReader)
 import Tahoe.SDMF.Internal.Keys (keyLength)
@@ -87,12 +90,16 @@ rsaKeyPair bs = do
                 _ -> error "Expected RSA Private Key"
     kp
 
-merkleTrees :: MonadGen m => Range.Range Int -> m MerkleTree
-merkleTrees r = makeTreePartial <$> Gen.list r genHash
+merkleTrees :: MonadGen m => Range.Range Int -> m (MerkleTree B.ByteString SHA256d)
+merkleTrees r = makeTreePartial <$> Gen.list r digests
 
--- | Generate ByteStrings which could be sha256d digests.
-genHash :: MonadGen m => m B.ByteString
-genHash = Gen.bytes . Range.singleton . hashDigestSize $ SHA256
+-- | Generate Digest' values for some hash algorithm.  Shrinks toward "aaa..."
+digests :: forall m hash. (MonadGen m, HashAlgorithm hash) => m (Digest' hash)
+digests =
+    Digest'
+        . fromMaybe (error "Failed to interpret bytes as digest")
+        . digestFromByteString
+        <$> Gen.bytes (Range.singleton (hashDigestSize (undefined :: hash)))
 
 -- | Generate lists of two-tuples of share identifier and share root hash.
 shareHashChains :: MonadGen m => m HashChain
@@ -142,7 +149,3 @@ verifiers = readerVerifier <$> readers
 -- | Build SDMF storage indexes.
 storageIndexes :: MonadGen m => m Keys.StorageIndex
 storageIndexes = Keys.StorageIndex <$> Gen.bytes (Range.singleton keyLength)
-
--- | Build SHA256 digests.
-digests :: MonadGen m => m (Digest SHA256)
-digests = fromJust . digestFromByteString <$> Gen.bytes (Range.singleton 32)

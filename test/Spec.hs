@@ -27,6 +27,7 @@ import Generators (capabilities, encodingParameters, genRSAKeys, ivLength, share
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
 import System.IO (hSetEncoding, stderr, stdout, utf8)
+import Tahoe.CHK.SHA256d (Digest' (Digest'))
 import Tahoe.Capability (confidentiallyShow)
 import qualified Tahoe.SDMF
 import Tahoe.SDMF.Internal.Capability (deriveVerifier)
@@ -206,7 +207,7 @@ tests =
 
             let (Right writeKey) = Binary.decode . LB.fromStrict <$> decodeBase32Unpadded "vdv6pcqkblsguvkagrblr3gopu"
                 (Just readerReadKey) = Keys.deriveReadKey writeKey
-                (Just readerVerifier) = deriveVerifier readerReadKey <$> digestFromByteString ("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" :: B.ByteString)
+                (Just readerVerifier) = deriveVerifier readerReadKey . Digest' <$> digestFromByteString ("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" :: B.ByteString)
                 reader = Tahoe.SDMF.Reader{..}
             ciphertext <- Tahoe.SDMF.decode reader [(0, s0), (6, s6), (9, s9)]
             let (Right expectedCiphertext) = LB.fromStrict <$> decodeBase32Unpadded "6gutkha6qd4g3lxahth2dw2wjekadwoxvmazrnfq5u5j6a7quu5qy6nz3dvosx2gisdjshdtd5xphqvqjco5pq73qi"
