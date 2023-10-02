@@ -13,7 +13,12 @@ However, its APIs are intended to be easy to integrate with such an implementati
 
 * SDMF write, read, and verify capabilities can be parsed and serialized.
 * SDMF shares can be deserialized, decoded, and decrypted.
-  * The cryptographic integrity and authenticity is not verified.
+  * The cryptographic integrity is not verified:
+	* a share's block hashes are not checked against the share's block hash tree
+	* the root of the computed share hash tree is not checked against share's pre-computed share hash tree root
+  * The cryptographic authenticity is not verified:
+    * signatures on the data are not checked
+
 * Plaintext can be encrypted, encoded into shares, and the shares serialized to bytes.
   * Not all fields of the shares contain correctly initialized values.
   * Enough fields are correctly populated to recover the original plaintext.
