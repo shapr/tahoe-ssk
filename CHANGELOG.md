@@ -1,5 +1,9 @@
 # Changelog for tahoe-ssk
 
+## 0.3.0.0 (Unreleased)
+
+* Updated the tahoe-chk dependency to 0.2.0.0.
+
 ## 0.2.1.0
 
 * Add Ord instances for StorageIndex, Verifier, Reader, and Writer.

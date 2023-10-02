@@ -5,8 +5,8 @@
 -}
 module Tahoe.SDMF.Internal.Encoding where
 
-import Control.Monad.Fail (MonadFail)
 import Control.Monad (when)
+import Control.Monad.Fail (MonadFail)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Crypto.Hash (digestFromByteString)
 import Crypto.Random (MonadRandom)
@@ -18,6 +18,7 @@ import qualified Data.Text as T
 import Data.Word (Word16, Word64, Word8)
 import Tahoe.CHK (padCiphertext, zfec, zunfec)
 import Tahoe.CHK.Merkle (MerkleTree (MerkleLeaf))
+import Tahoe.CHK.SHA256d (Digest' (Digest'), zero)
 import Tahoe.SDMF.Internal.Capability (Reader (..), Writer (..), deriveReader)
 import Tahoe.SDMF.Internal.Converting (from, tryInto)
 import qualified Tahoe.SDMF.Internal.Keys as Keys
@@ -91,7 +92,7 @@ makeShare shareSequenceNumber shareIV shareRequiredShares shareTotalShares share
     shareRootHash = B.replicate 32 0
     shareSignature = B.replicate 32 0 -- XXX Actually compute sig, and is it 32 bytes?
     shareHashChain = HashChain []
-    shareBlockHashTree = MerkleLeaf (B.replicate 32 0) -- XXX Real hash here, plus length check
+    shareBlockHashTree = MerkleLeaf zero -- XXX Real hash here, plus length check
 
 {- | Decode some SDMF shares to recover the original ciphertext.
 
@@ -124,7 +125,7 @@ capabilityForKeyPair keypair =
     Writer <$> writerWriteKey <*> maybeToEither' "Failed to derive read capability" writerReader
   where
     writerWriteKey = maybeToEither "Failed to derive write key" . Keys.deriveWriteKey . Keys.toSignatureKey $ keypair
-    verificationKeyHash = digestFromByteString . Keys.deriveVerificationHash . Keys.toVerificationKey $ keypair
+    verificationKeyHash = fmap Digest' . digestFromByteString . Keys.deriveVerificationHash . Keys.toVerificationKey $ keypair
     writerReader = deriveReader <$> writerWriteKey <*> maybeToEither "Failed to interpret verification hash" verificationKeyHash
 
 maybeToEither :: a -> Maybe b -> Either a b
