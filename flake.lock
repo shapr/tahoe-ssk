@@ -216,11 +216,11 @@
         "pre-commit-hooks": "pre-commit-hooks"
       },
       "locked": {
-        "lastModified": 1692187439,
-        "narHash": "sha256-m7c4EPFWmB1OmV3dSYQk2qtXR53xOjZdLCjMtzHSK34=",
+        "lastModified": 1696619796,
+        "narHash": "sha256-4PjNRfnk22EuGCu7mF2sAb3JtaWKuBdgew4frd+Xpts=",
         "ref": "main",
-        "rev": "408f3deab2e2f6ae60349776dde02c44f71fb386",
-        "revCount": 16,
+        "rev": "8887555c96886d81d671fb68a3a2d000e578c4e0",
+        "revCount": 19,
         "type": "git",
         "url": "https://whetstone.private.storage/jcalderone/hs-flake-utils.git"
       },
