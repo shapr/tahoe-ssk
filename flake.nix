@@ -64,7 +64,7 @@
       };
 
       apps.cabal-test = hslib.apps.cabal-test {
-        preBuild = "nix run .#generate-cabal-project";
+        preBuild = "nix run .#write-cabal-project";
       };
 
       apps.release = hslib.apps.release {};
